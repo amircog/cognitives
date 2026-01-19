@@ -35,6 +35,7 @@ function calculateSummary(results: TrialResult[]): ResultsSummary {
 export default function ResultsPage() {
   const router = useRouter();
   const [summary, setSummary] = useState<ResultsSummary | null>(null);
+  const [results, setResults] = useState<TrialResult[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -49,8 +50,9 @@ export default function ResultsPage() {
     setSessionId(storedSessionId);
 
     try {
-      const results: TrialResult[] = JSON.parse(storedResults);
-      setSummary(calculateSummary(results));
+      const parsedResults: TrialResult[] = JSON.parse(storedResults);
+      setResults(parsedResults);
+      setSummary(calculateSummary(parsedResults));
     } catch {
       router.push('/');
     }
@@ -161,12 +163,9 @@ export default function ResultsPage() {
         {/* Chart */}
         <div className="bg-card border border-border rounded-xl p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">
-            Average Reaction Times
+            Average Reaction Times by Word
           </h2>
-          <ResultsChart
-            congruentAvg={summary.congruentAvg}
-            incongruentAvg={summary.incongruentAvg}
-          />
+          <ResultsChart results={results} />
         </div>
 
         {/* Explanation */}
