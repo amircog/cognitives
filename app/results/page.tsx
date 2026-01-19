@@ -4,10 +4,23 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ResultsChart } from '@/components/results-chart';
+import { VisualizationTabs } from '@/components/visualization-tabs';
+import { DistributionChart } from '@/components/charts/distribution-chart';
+import { SpaghettiChart } from '@/components/charts/spaghetti-chart';
+import { DifferenceChart } from '@/components/charts/difference-chart';
+import { SpeedAccuracyChart } from '@/components/charts/speed-accuracy-chart';
 import { TrialResult, ResultsSummary } from '@/types';
 import { calculateAverage } from '@/lib/timing';
-import { RotateCcw, TrendingUp, Target, Clock, Trash2 } from 'lucide-react';
+import { RotateCcw, TrendingUp, Target, Clock, Trash2, Database } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+
+const VISUALIZATION_TABS = [
+  { id: 'grouped', label: 'Grouped Bar', description: 'Compare conditions by word' },
+  { id: 'distribution', label: 'Distribution', description: 'See raw data spread' },
+  { id: 'spaghetti', label: 'Word Comparison', description: 'Track effect by word' },
+  { id: 'difference', label: 'Effect Size', description: 'Stroop effect magnitude' },
+  { id: 'accuracy', label: 'Speed vs Accuracy', description: 'Trade-off analysis' },
+];
 
 function calculateSummary(results: TrialResult[]): ResultsSummary {
   const congruentTimes = results
@@ -38,6 +51,8 @@ export default function ResultsPage() {
   const [results, setResults] = useState<TrialResult[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
+  const [activeTab, setActiveTab] = useState('grouped');
 
   useEffect(() => {
     const storedResults = sessionStorage.getItem('stroop_results');
@@ -84,13 +99,67 @@ export default function ResultsPage() {
         console.error('Failed to clear results:', error);
         alert('Failed to clear results. Please try again.');
       } else {
-        alert('Results cleared from database successfully.');
+        alert('Session results cleared from database successfully.');
       }
     } catch (err) {
       console.error('Error clearing results:', err);
       alert('Failed to clear results. Please try again.');
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    const confirmed = window.confirm(
+      '⚠️ WARNING: This will delete ALL experiment data from the database for ALL sessions. This action cannot be undone.\n\nAre you absolutely sure?'
+    );
+
+    if (!confirmed) return;
+
+    const doubleConfirm = window.confirm(
+      'Final confirmation: Delete ALL data from the database?'
+    );
+
+    if (!doubleConfirm) return;
+
+    setIsClearingAll(true);
+    try {
+      const { error } = await supabase
+        .from('stroop_results')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+
+      if (error) {
+        console.error('Failed to clear all data:', error);
+        alert('Failed to clear all data. Please try again.');
+      } else {
+        alert('All data cleared from database successfully. Starting fresh!');
+        sessionStorage.removeItem('stroop_session_id');
+        sessionStorage.removeItem('stroop_results');
+        router.push('/');
+      }
+    } catch (err) {
+      console.error('Error clearing all data:', err);
+      alert('Failed to clear all data. Please try again.');
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
+
+  const renderChart = () => {
+    switch (activeTab) {
+      case 'grouped':
+        return <ResultsChart results={results} />;
+      case 'distribution':
+        return <DistributionChart results={results} />;
+      case 'spaghetti':
+        return <SpaghettiChart results={results} />;
+      case 'difference':
+        return <DifferenceChart results={results} />;
+      case 'accuracy':
+        return <SpeedAccuracyChart results={results} />;
+      default:
+        return <ResultsChart results={results} />;
     }
   };
 
@@ -103,12 +172,12 @@ export default function ResultsPage() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8">
+    <main className="min-h-screen flex flex-col items-center py-8 px-4 md:px-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-3xl"
+        className="w-full max-w-4xl"
       >
         <h1 className="text-4xl md:text-5xl font-bold text-center mb-2">
           Your Results
@@ -160,12 +229,15 @@ export default function ResultsPage() {
           </div>
         </div>
 
-        {/* Chart */}
+        {/* Visualization Section */}
         <div className="bg-card border border-border rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">
-            Average Reaction Times by Word
-          </h2>
-          <ResultsChart results={results} />
+          <h2 className="text-lg font-semibold mb-4">Data Visualizations</h2>
+          <VisualizationTabs
+            tabs={VISUALIZATION_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+          {renderChart()}
         </div>
 
         {/* Explanation */}
@@ -189,13 +261,13 @@ export default function ResultsPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-4 mb-8">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleRestart}
-            className="flex items-center gap-2 px-6 py-3 bg-card border border-border
-                       rounded-xl font-medium transition-colors hover:bg-border"
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-400 text-zinc-900
+                       rounded-xl font-medium transition-colors hover:bg-emerald-300"
           >
             <RotateCcw className="w-4 h-4" />
             Try Again
@@ -206,14 +278,32 @@ export default function ResultsPage() {
             whileTap={{ scale: 0.98 }}
             onClick={handleClearResults}
             disabled={isClearing}
+            className="flex items-center gap-2 px-6 py-3 bg-card border border-border
+                       rounded-xl font-medium transition-colors hover:bg-border
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isClearing ? 'Clearing...' : 'Clear Session'}
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleClearAllData}
+            disabled={isClearingAll}
             className="flex items-center gap-2 px-6 py-3 bg-card border border-rose-500/50
                        rounded-xl font-medium text-rose-500 transition-colors
                        hover:bg-rose-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Trash2 className="w-4 h-4" />
-            {isClearing ? 'Clearing...' : 'Clear Results'}
+            <Database className="w-4 h-4" />
+            {isClearingAll ? 'Clearing...' : 'Clear All Data'}
           </motion.button>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-muted">
+          Data is stored securely and used for research purposes only.
+        </p>
       </motion.div>
     </main>
   );

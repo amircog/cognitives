@@ -34,6 +34,7 @@ export const supabase = {
         select: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
         delete: () => ({
           eq: () => Promise.resolve(notConfiguredError),
+          neq: () => Promise.resolve(notConfiguredError),
         }),
       };
     }
