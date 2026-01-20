@@ -11,7 +11,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { TrialResult } from '@/types';
+import { TrialResult, WORDS } from '@/types';
 
 interface DifferenceChartProps {
   results: TrialResult[];
@@ -28,9 +28,7 @@ function processData(results: TrialResult[]): {
   wordDifferences: DifferenceScore[];
   overallDifference: number;
 } {
-  const words = ['red', 'green', 'yellow'];
-
-  const wordDifferences = words.map((word) => {
+  const wordDifferences = WORDS.map((word) => {
     const congruentTrials = results.filter(
       (r) => r.word_text === word && r.is_congruent && r.is_correct
     );

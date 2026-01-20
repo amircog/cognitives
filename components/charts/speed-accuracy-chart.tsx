@@ -11,7 +11,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts';
-import { TrialResult } from '@/types';
+import { TrialResult, WORDS } from '@/types';
 
 interface SpeedAccuracyChartProps {
   results: TrialResult[];
@@ -27,11 +27,10 @@ interface DataPoint {
 }
 
 function processData(results: TrialResult[]): DataPoint[] {
-  const words = ['red', 'green', 'yellow'];
   const conditions = ['congruent', 'incongruent'];
   const dataPoints: DataPoint[] = [];
 
-  words.forEach((word) => {
+  WORDS.forEach((word) => {
     conditions.forEach((condition) => {
       const isCongruent = condition === 'congruent';
       const trials = results.filter(

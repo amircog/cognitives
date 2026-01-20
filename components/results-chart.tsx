@@ -11,7 +11,7 @@ import {
   Legend,
   ErrorBar,
 } from 'recharts';
-import { TrialResult } from '@/types';
+import { TrialResult, WORDS } from '@/types';
 
 interface ResultsChartProps {
   results: TrialResult[];
@@ -40,9 +40,7 @@ function calculateStandardError(values: number[]): number {
 }
 
 function processResults(results: TrialResult[]): WordStats[] {
-  const words = ['red', 'green', 'yellow'];
-
-  return words.map((word) => {
+  return WORDS.map((word) => {
     const congruentTimes = results
       .filter((r) => r.word_text === word && r.is_congruent && r.is_correct)
       .map((r) => r.reaction_time_ms);

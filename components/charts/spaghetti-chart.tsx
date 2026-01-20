@@ -11,7 +11,7 @@ import {
   Scatter,
   ComposedChart,
 } from 'recharts';
-import { TrialResult } from '@/types';
+import { TrialResult, WORDS } from '@/types';
 
 interface SpaghettiChartProps {
   results: TrialResult[];
@@ -24,9 +24,7 @@ interface WordComparison {
 }
 
 function processData(results: TrialResult[]): WordComparison[] {
-  const words = ['red', 'green', 'yellow'];
-
-  return words.map((word) => {
+  return WORDS.map((word) => {
     const congruentTrials = results.filter(
       (r) => r.word_text === word && r.is_congruent && r.is_correct
     );
