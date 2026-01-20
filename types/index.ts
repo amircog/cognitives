@@ -47,8 +47,8 @@ export const COLORS: Record<ColorKey, { hex: string; name: string }> = {
 export const WORDS = [
   // English
   'red', 'green', 'yellow',
-  // Hebrew
-  'אדום', 'ירוק', 'צהוב',
+  // Hebrew (transliterated)
+  'adom', 'yarok', 'tsahov',
   // Spanish
   'rojo', 'verde', 'amarillo',
   // Non-words
