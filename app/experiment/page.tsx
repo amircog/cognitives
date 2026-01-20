@@ -107,9 +107,9 @@ export default function ExperimentPage() {
       setResults(newResults);
 
       // Save to Supabase (non-blocking)
-      supabase.from('stroop_results').insert(result).then(({ error }) => {
-        if (error) {
-          console.error('Failed to save result:', error);
+      supabase.from('stroop_results').insert(result).then((response: any) => {
+        if (response.error) {
+          console.error('Failed to save result:', response.error);
         }
       });
 
