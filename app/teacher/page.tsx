@@ -8,7 +8,7 @@ import { TrialResult } from '@/types';
 import { getLanguageGroup, LANGUAGE_GROUPS, type LanguageGroup } from '@/lib/language-groups';
 import { LanguageGroupBarChart } from '@/components/charts/language-group-bar-chart';
 import { IndividualScatterChart } from '@/components/charts/individual-scatter-chart';
-import { SpeedAccuracyChart } from '@/components/charts/speed-accuracy-chart';
+import { TeacherSpeedAccuracyChart } from '@/components/charts/teacher-speed-accuracy-chart';
 
 interface AggregateData {
   languageGroup: LanguageGroup;
@@ -268,7 +268,7 @@ export default function TeacherDashboard() {
                 Relationship between reaction time and accuracy for each participant across language groups.
                 Points higher and to the left indicate faster and more accurate performance.
               </p>
-              <SpeedAccuracyChart data={subjectData} />
+              <TeacherSpeedAccuracyChart data={subjectData} />
             </div>
           </div>
         )}
