@@ -10,7 +10,6 @@ import {
   Legend,
   ResponsiveContainer,
   ZAxis,
-  ReferenceLine,
 } from 'recharts';
 import { LanguageGroup } from '@/lib/language-groups';
 
@@ -22,7 +21,7 @@ interface SubjectData {
   languageGroup: LanguageGroup;
 }
 
-interface SpeedAccuracyChartProps {
+interface IndividualScatterChartProps {
   data: SubjectData[];
 }
 
@@ -33,7 +32,7 @@ const LANGUAGE_GROUP_COLORS: Record<LanguageGroup, string> = {
   'Non-words': '#6b7280',
 };
 
-export function SpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
+export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
   const groupedData = {
     English: data.filter((d) => d.languageGroup === 'English'),
     Hebrew: data.filter((d) => d.languageGroup === 'Hebrew'),
@@ -43,8 +42,8 @@ export function SpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
 
   const scatterData = (group: LanguageGroup) =>
     groupedData[group].map((d) => ({
-      x: Math.round((d.congruentMean + d.incongruentMean) / 2),
-      y: Math.round(d.accuracy * 10) / 10,
+      x: Math.round(d.congruentMean),
+      y: Math.round(d.incongruentMean),
       name: group,
     }));
 
@@ -57,19 +56,18 @@ export function SpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
         <XAxis
           type="number"
           dataKey="x"
-          name="Mean RT"
+          name="Congruent RT"
           stroke="#a1a1aa"
           tick={{ fill: '#a1a1aa' }}
-          label={{ value: 'Mean Reaction Time (ms)', position: 'insideBottom', offset: -10, fill: '#a1a1aa' }}
+          label={{ value: 'Congruent RT (ms)', position: 'insideBottom', offset: -10, fill: '#a1a1aa' }}
         />
         <YAxis
           type="number"
           dataKey="y"
-          name="Accuracy"
-          domain={[0, 100]}
+          name="Incongruent RT"
           stroke="#a1a1aa"
           tick={{ fill: '#a1a1aa' }}
-          label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+          label={{ value: 'Incongruent RT (ms)', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
         />
         <ZAxis range={[100, 100]} />
         <Tooltip
@@ -81,16 +79,11 @@ export function SpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
           }}
           labelStyle={{ color: '#fafafa' }}
           itemStyle={{ color: '#fafafa' }}
-          formatter={(value: number, name: string) => {
-            if (name === 'Mean RT') return `${value} ms`;
-            if (name === 'Accuracy') return `${value}%`;
-            return value;
-          }}
+          formatter={(value: number) => `${value} ms`}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
         />
-        <ReferenceLine y={90} stroke="#10b981" strokeDasharray="3 3" />
         <Scatter
           name="English"
           data={scatterData('English')}

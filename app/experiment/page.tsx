@@ -114,10 +114,9 @@ export default function ExperimentPage() {
       });
 
       if (currentIndex + 1 >= TOTAL_TRIALS) {
-        // Experiment complete - save results to sessionStorage and navigate
-        sessionStorage.setItem('stroop_results', JSON.stringify(newResults));
+        // Experiment complete - navigate to thank you page
         setTimeout(() => {
-          router.push('/results');
+          router.push('/thanks');
         }, INTER_TRIAL_DELAY);
       } else {
         // Move to next trial after delay
