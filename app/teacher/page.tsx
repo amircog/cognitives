@@ -59,12 +59,12 @@ export default function TeacherDashboard() {
       setTotalTrials(data.length);
 
       // Get unique sessions
-      const uniqueSessions = new Set(data.map((r) => r.session_id));
+      const uniqueSessions = new Set(data.map((r: TrialResult) => r.session_id));
       setTotalSessions(uniqueSessions.size);
 
       // Calculate aggregate data per language group
       const aggregates: AggregateData[] = LANGUAGE_GROUPS.map((group) => {
-        const groupResults = data.filter((r) => getLanguageGroup(r.word_text) === group);
+        const groupResults = data.filter((r: TrialResult) => getLanguageGroup(r.word_text) === group);
 
         const congruentResults = groupResults.filter((r) => r.is_congruent && r.is_correct);
         const incongruentResults = groupResults.filter((r) => !r.is_congruent && r.is_correct);
@@ -107,11 +107,11 @@ export default function TeacherDashboard() {
       // Calculate per-subject data for scatter plot
       const subjects: SubjectData[] = [];
       uniqueSessions.forEach((sessionId) => {
-        const sessionResults = data.filter((r) => r.session_id === sessionId);
+        const sessionResults = data.filter((r: TrialResult) => r.session_id === sessionId);
 
         // Calculate per language group for this subject
         LANGUAGE_GROUPS.forEach((group) => {
-          const groupResults = sessionResults.filter((r) => getLanguageGroup(r.word_text) === group);
+          const groupResults = sessionResults.filter((r: TrialResult) => getLanguageGroup(r.word_text) === group);
 
           if (groupResults.length === 0) return;
 
