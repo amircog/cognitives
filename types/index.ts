@@ -43,4 +43,23 @@ export const COLORS: Record<ColorKey, { hex: string; name: string }> = {
   yellow: { hex: '#fbbf24', name: 'yellow' },
 };
 
-export const WORDS: ColorKey[] = ['red', 'green', 'yellow'];
+// All experimental words (12 total)
+export const WORDS = [
+  // English
+  'red', 'green', 'yellow',
+  // Hebrew
+  'אדום', 'ירוק', 'צהוב',
+  // Spanish
+  'rojo', 'verde', 'amarillo',
+  // Non-words
+  'flurg', 'blaket', 'zorphin'
+];
+
+// Practice trial words
+export const PRACTICE_WORDS = [
+  { word: 'welcome', color: 'red' as ColorKey },
+  { word: 'cognition', color: 'green' as ColorKey },
+  { word: 'class', color: 'yellow' as ColorKey },
+  { word: 'enjoy', color: 'green' as ColorKey },
+  { word: 'experiment', color: 'red' as ColorKey }
+];

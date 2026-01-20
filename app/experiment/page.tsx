@@ -8,19 +8,22 @@ import { RotateCcw } from 'lucide-react';
 import { TrialDisplay } from '@/components/trial-display';
 import { ResponseButtons } from '@/components/response-buttons';
 import { ProgressBar } from '@/components/progress-bar';
-import { generateTrials, isCorrectResponse } from '@/lib/experiment';
+import { generateTrials, generatePracticeTrials, isCorrectResponse } from '@/lib/experiment';
 import { getTimestamp, calculateReactionTime } from '@/lib/timing';
 import { supabase } from '@/lib/supabase';
 import { Trial, TrialResult, ColorKey } from '@/types';
 
-const TOTAL_TRIALS = 20;
+const PRACTICE_TRIALS_COUNT = 5;
+const TOTAL_TRIALS = 36;
 const INTER_TRIAL_DELAY = 500; // ms between trials
 
 export default function ExperimentPage() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [practiceTrials, setPracticeTrials] = useState<Trial[]>([]);
   const [trials, setTrials] = useState<Trial[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPractice, setIsPractice] = useState(true);
   const [isWaiting, setIsWaiting] = useState(false);
   const [results, setResults] = useState<TrialResult[]>([]);
   const startTimeRef = useRef<number>(0);
@@ -32,33 +35,63 @@ export default function ExperimentPage() {
       return;
     }
     setSessionId(storedSessionId);
+    setPracticeTrials(generatePracticeTrials());
     setTrials(generateTrials());
   }, [router]);
 
   useEffect(() => {
-    if (trials.length > 0 && currentIndex < trials.length && !isWaiting) {
+    const currentTrials = isPractice ? practiceTrials : trials;
+    if (currentTrials.length > 0 && currentIndex < currentTrials.length && !isWaiting) {
       startTimeRef.current = getTimestamp();
     }
-  }, [currentIndex, trials.length, isWaiting]);
+  }, [currentIndex, isPractice, practiceTrials.length, trials.length, isWaiting]);
 
   const handleRestart = useCallback(() => {
     const newSessionId = uuidv4();
     sessionStorage.setItem('stroop_session_id', newSessionId);
     setSessionId(newSessionId);
+    setPracticeTrials(generatePracticeTrials());
     setTrials(generateTrials());
     setCurrentIndex(0);
+    setIsPractice(true);
     setResults([]);
     setIsWaiting(false);
   }, []);
 
   const handleResponse = useCallback(
     async (response: ColorKey) => {
-      if (isWaiting || !sessionId || currentIndex >= trials.length) return;
+      if (isWaiting || !sessionId) return;
+
+      const currentTrials = isPractice ? practiceTrials : trials;
+      if (currentIndex >= currentTrials.length) return;
 
       const reactionTime = calculateReactionTime(startTimeRef.current);
-      const currentTrial = trials[currentIndex];
+      const currentTrial = currentTrials[currentIndex];
       const correct = isCorrectResponse(currentTrial, response);
 
+      // Show inter-trial blank
+      setIsWaiting(true);
+
+      // If in practice mode, don't save results
+      if (isPractice) {
+        if (currentIndex + 1 >= PRACTICE_TRIALS_COUNT) {
+          // Practice complete - move to real experiment
+          setTimeout(() => {
+            setIsPractice(false);
+            setCurrentIndex(0);
+            setIsWaiting(false);
+          }, INTER_TRIAL_DELAY);
+        } else {
+          // Move to next practice trial
+          setTimeout(() => {
+            setCurrentIndex((prev) => prev + 1);
+            setIsWaiting(false);
+          }, INTER_TRIAL_DELAY);
+        }
+        return;
+      }
+
+      // Real experiment - save results
       const result: TrialResult = {
         session_id: sessionId,
         word_text: currentTrial.wordText,
@@ -80,9 +113,6 @@ export default function ExperimentPage() {
         }
       });
 
-      // Show inter-trial blank
-      setIsWaiting(true);
-
       if (currentIndex + 1 >= TOTAL_TRIALS) {
         // Experiment complete - save results to sessionStorage and navigate
         sessionStorage.setItem('stroop_results', JSON.stringify(newResults));
@@ -97,10 +127,10 @@ export default function ExperimentPage() {
         }, INTER_TRIAL_DELAY);
       }
     },
-    [currentIndex, isWaiting, results, router, sessionId, trials]
+    [currentIndex, isPractice, isWaiting, practiceTrials, results, router, sessionId, trials]
   );
 
-  if (!sessionId || trials.length === 0) {
+  if (!sessionId || trials.length === 0 || practiceTrials.length === 0) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-muted">Loading...</div>
@@ -108,12 +138,21 @@ export default function ExperimentPage() {
     );
   }
 
-  const currentTrial = trials[currentIndex];
+  const currentTrials = isPractice ? practiceTrials : trials;
+  const currentTrial = currentTrials[currentIndex];
+  const totalForProgress = isPractice ? PRACTICE_TRIALS_COUNT : TOTAL_TRIALS;
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8">
       <div className="fixed top-8 left-1/2 -translate-x-1/2 w-full max-w-md px-4">
-        <ProgressBar current={currentIndex + 1} total={TOTAL_TRIALS} />
+        {isPractice ? (
+          <div className="text-center">
+            <p className="text-sm font-medium text-emerald-400 mb-2">Practice Trial</p>
+            <ProgressBar current={currentIndex + 1} total={totalForProgress} />
+          </div>
+        ) : (
+          <ProgressBar current={currentIndex + 1} total={totalForProgress} />
+        )}
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-16 w-full">

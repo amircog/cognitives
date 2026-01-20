@@ -40,21 +40,28 @@ export default function HomePage() {
             <li className="flex gap-3">
               <span className="text-emerald-400 font-bold">1.</span>
               <span>
-                You will see color words displayed in different font colors.
+                You will see words displayed in different font colors (Red, Green, or Yellow).
               </span>
             </li>
             <li className="flex gap-3">
               <span className="text-emerald-400 font-bold">2.</span>
               <span>
                 Identify the <strong className="text-foreground">font color</strong>,
-                not the word meaning.
+                not the word meaning. Ignore what the word says!
               </span>
             </li>
             <li className="flex gap-3">
               <span className="text-emerald-400 font-bold">3.</span>
               <span>
-                Respond as quickly and accurately as possible using the buttons
-                or keyboard.
+                The experiment starts with <strong className="text-foreground">5 practice trials</strong>,
+                then continues with 36 experimental trials.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="text-emerald-400 font-bold">4.</span>
+              <span>
+                Respond as quickly and accurately as possible using the buttons (R, G, Y)
+                or keyboard shortcuts.
               </span>
             </li>
           </ol>
@@ -62,9 +69,9 @@ export default function HomePage() {
           <div className="flex items-center gap-2 mt-6 pt-4 border-t border-border text-sm text-muted">
             <Keyboard className="w-4 h-4" />
             <span>
-              Keyboard shortcuts: <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">Y</kbd> Yellow,{' '}
+              Keyboard shortcuts: <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">R</kbd> Red,{' '}
               <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">G</kbd> Green,{' '}
-              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">R</kbd> Red
+              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">Y</kbd> Yellow
             </span>
           </div>
         </div>
@@ -80,7 +87,7 @@ export default function HomePage() {
         </motion.button>
 
         <p className="mt-6 text-sm text-muted">
-          20 trials • Takes about 2 minutes
+          5 practice + 36 trials • Takes about 3-4 minutes
         </p>
       </motion.div>
     </main>

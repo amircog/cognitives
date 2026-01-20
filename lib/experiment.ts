@@ -1,6 +1,6 @@
-import { Trial, COLORS, WORDS, ColorKey } from '@/types';
+import { Trial, COLORS, WORDS, PRACTICE_WORDS, ColorKey } from '@/types';
 
-const TOTAL_TRIALS = 20;
+const COLOR_KEYS: ColorKey[] = ['red', 'green', 'yellow'];
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -13,36 +13,36 @@ function shuffleArray<T>(array: T[]): T[] {
 
 function createTrial(
   id: number,
-  wordText: ColorKey,
+  wordText: string,
   colorName: ColorKey
 ): Trial {
+  // Determine if congruent: only English color words can be congruent
+  const isCongruent = wordText === colorName;
+
   return {
     id,
     wordText,
     fontColor: COLORS[colorName].hex,
     colorName,
-    isCongruent: wordText === colorName,
+    isCongruent,
   };
+}
+
+export function generatePracticeTrials(): Trial[] {
+  return PRACTICE_WORDS.map((item, index) =>
+    createTrial(index, item.word, item.color)
+  );
 }
 
 export function generateTrials(): Trial[] {
   const trials: Trial[] = [];
-  const halfTrials = Math.floor(TOTAL_TRIALS / 2);
 
-  // Generate congruent trials (word matches color)
-  for (let i = 0; i < halfTrials; i++) {
-    const word = WORDS[i % WORDS.length];
-    trials.push(createTrial(trials.length, word, word));
-  }
-
-  // Generate incongruent trials (word doesn't match color)
-  for (let i = 0; i < TOTAL_TRIALS - halfTrials; i++) {
-    const word = WORDS[i % WORDS.length];
-    // Pick a different color than the word
-    const otherColors = WORDS.filter((w) => w !== word);
-    const color = otherColors[i % otherColors.length];
-    trials.push(createTrial(trials.length, word, color));
-  }
+  // Generate all combinations: 12 words × 3 colors = 36 trials
+  WORDS.forEach((word) => {
+    COLOR_KEYS.forEach((color) => {
+      trials.push(createTrial(trials.length, word, color));
+    });
+  });
 
   // Shuffle and reassign IDs
   const shuffled = shuffleArray(trials);

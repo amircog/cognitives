@@ -40,9 +40,9 @@ export function ResponseButtons({ onResponse, disabled }: ResponseButtonsProps) 
           onClick={() => onResponse(key)}
           disabled={disabled}
           className="w-16 h-16 md:w-20 md:h-20 rounded-xl font-bold text-2xl md:text-3xl
-                     text-zinc-900 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed
-                     shadow-lg"
-          style={{ backgroundColor: COLORS[key].hex }}
+                     bg-white text-zinc-900 border-2 border-zinc-300
+                     transition-opacity disabled:opacity-50 disabled:cursor-not-allowed
+                     shadow-lg hover:border-zinc-400"
         >
           {label}
         </motion.button>
