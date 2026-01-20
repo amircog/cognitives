@@ -29,14 +29,16 @@ export const supabase = {
     const client = getSupabase();
     if (!client) {
       const notConfiguredError = { error: new Error('Supabase not configured') };
-      return {
+      const mockQuery = {
         insert: () => Promise.resolve(notConfiguredError),
-        select: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
-        delete: () => ({
-          eq: () => Promise.resolve(notConfiguredError),
-          neq: () => Promise.resolve(notConfiguredError),
-        }),
+        select: () => mockQuery,
+        order: () => mockQuery,
+        eq: () => Promise.resolve(notConfiguredError),
+        neq: () => Promise.resolve(notConfiguredError),
+        delete: () => mockQuery,
+        then: (resolve: any) => resolve({ data: [], error: new Error('Supabase not configured') }),
       };
+      return mockQuery as any;
     }
     return client.from(table);
   },
