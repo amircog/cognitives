@@ -5,6 +5,7 @@
 CREATE TABLE stroop_results (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id uuid NOT NULL,
+  participant_name text,
   word_text text NOT NULL,
   font_color text NOT NULL,
   is_congruent boolean NOT NULL,

@@ -60,6 +60,7 @@ export function LanguageGroupBarChart({ data }: LanguageGroupBarChartProps) {
       <BarChart
         data={chartData}
         margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        barCategoryGap="20%"
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
         <XAxis
@@ -84,13 +85,13 @@ export function LanguageGroupBarChart({ data }: LanguageGroupBarChartProps) {
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
         />
-        <Bar dataKey="Congruent" fill="#34d399" radius={[8, 8, 0, 0]}>
+        <Bar dataKey="Congruent" fill="#34d399" radius={[8, 8, 0, 0]} maxBarSize={60}>
           <ErrorBar dataKey="CongruentSEM" width={4} strokeWidth={2} stroke="#34d399" />
         </Bar>
-        <Bar dataKey="Incongruent" fill="#f43f5e" radius={[8, 8, 0, 0]}>
+        <Bar dataKey="Incongruent" fill="#f43f5e" radius={[8, 8, 0, 0]} maxBarSize={60}>
           <ErrorBar dataKey="IncongruentSEM" width={4} strokeWidth={2} stroke="#f43f5e" />
         </Bar>
-        <Bar dataKey="Baseline" fill="#71717a" radius={[8, 8, 0, 0]}>
+        <Bar dataKey="Baseline" fill="#71717a" radius={[8, 8, 0, 0]} maxBarSize={60}>
           <ErrorBar dataKey="BaselineSEM" width={4} strokeWidth={2} stroke="#71717a" />
         </Bar>
       </BarChart>

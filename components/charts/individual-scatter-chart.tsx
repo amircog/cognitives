@@ -10,11 +10,13 @@ import {
   Legend,
   ResponsiveContainer,
   ZAxis,
+  ReferenceLine,
 } from 'recharts';
 import { LanguageGroup } from '@/lib/language-groups';
 
 interface SubjectData {
   sessionId: string;
+  participantName?: string;
   congruentMean: number;
   incongruentMean: number;
   accuracy: number;
@@ -45,7 +47,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
       x: Math.round(d.congruentMean),
       y: Math.round(d.incongruentMean),
       name: group,
-      sessionId: d.sessionId.substring(0, 8), // Short session ID for display
+      participantName: d.participantName || d.sessionId.substring(0, 8),
     }));
 
   return (
@@ -83,13 +85,20 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
           formatter={(value: number | undefined) => value !== undefined ? `${value} ms` : ''}
           labelFormatter={(_, payload) => {
             if (payload && payload[0] && payload[0].payload) {
-              return `Participant: ${payload[0].payload.sessionId}`;
+              return `Participant: ${payload[0].payload.participantName}`;
             }
             return '';
           }}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
+        />
+        {/* Diagonal line y=x */}
+        <ReferenceLine
+          segment={[{ x: 0, y: 0 }, { x: 2000, y: 2000 }]}
+          stroke="#71717a"
+          strokeDasharray="5 5"
+          strokeWidth={2}
         />
         <Scatter
           name="English"

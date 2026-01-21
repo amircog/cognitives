@@ -20,6 +20,7 @@ const INTER_TRIAL_DELAY = 500; // ms between trials
 export default function ExperimentPage() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [participantName, setParticipantName] = useState<string | null>(null);
   const [practiceTrials, setPracticeTrials] = useState<Trial[]>([]);
   const [trials, setTrials] = useState<Trial[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -31,11 +32,13 @@ export default function ExperimentPage() {
 
   useEffect(() => {
     const storedSessionId = sessionStorage.getItem('stroop_session_id');
+    const storedName = sessionStorage.getItem('stroop_participant_name');
     if (!storedSessionId) {
       router.push('/');
       return;
     }
     setSessionId(storedSessionId);
+    setParticipantName(storedName);
     setPracticeTrials(generatePracticeTrials());
     setTrials(generateTrials());
   }, [router]);
@@ -109,6 +112,7 @@ export default function ExperimentPage() {
       // Real experiment - save results
       const result: TrialResult = {
         session_id: sessionId,
+        participant_name: participantName || undefined,
         word_text: currentTrial.wordText,
         font_color: currentTrial.fontColor,
         is_congruent: currentTrial.isCongruent,

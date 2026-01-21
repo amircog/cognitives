@@ -9,6 +9,7 @@ export interface Trial {
 export interface TrialResult {
   id?: string;
   session_id: string;
+  participant_name?: string;
   word_text: string;
   font_color: string;
   is_congruent: boolean;

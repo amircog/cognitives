@@ -16,6 +16,7 @@ import { LanguageGroup } from '@/lib/language-groups';
 
 interface SubjectData {
   sessionId: string;
+  participantName?: string;
   congruentMean: number;
   incongruentMean: number;
   accuracy: number;
@@ -46,7 +47,7 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
       x: Math.round((d.congruentMean + d.incongruentMean) / 2),
       y: Math.round(d.accuracy * 10) / 10,
       name: group,
-      sessionId: d.sessionId.substring(0, 8), // Short session ID for display
+      participantName: d.participantName || d.sessionId.substring(0, 8),
     }));
 
   return (
@@ -90,7 +91,7 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
           }}
           labelFormatter={(_, payload) => {
             if (payload && payload[0] && payload[0].payload) {
-              return `Participant: ${payload[0].payload.sessionId}`;
+              return `Participant: ${payload[0].payload.participantName}`;
             }
             return '';
           }}

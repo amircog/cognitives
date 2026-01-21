@@ -22,6 +22,7 @@ interface AggregateData {
 
 interface SubjectData {
   sessionId: string;
+  participantName?: string;
   congruentMean: number;
   incongruentMean: number;
   accuracy: number;
@@ -108,6 +109,7 @@ export default function TeacherDashboard() {
       const subjects: SubjectData[] = [];
       uniqueSessions.forEach((sessionId) => {
         const sessionResults = data.filter((r: TrialResult) => r.session_id === sessionId);
+        const participantName = sessionResults[0]?.participant_name;
 
         // Calculate per language group for this subject
         LANGUAGE_GROUPS.forEach((group) => {
@@ -133,6 +135,7 @@ export default function TeacherDashboard() {
 
           subjects.push({
             sessionId,
+            participantName,
             congruentMean,
             incongruentMean,
             accuracy,
