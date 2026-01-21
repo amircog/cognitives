@@ -45,12 +45,13 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
       x: Math.round(d.congruentMean),
       y: Math.round(d.incongruentMean),
       name: group,
+      sessionId: d.sessionId.substring(0, 8), // Short session ID for display
     }));
 
   return (
     <ResponsiveContainer width="100%" height={500}>
       <ScatterChart
-        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+        margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
         <XAxis
@@ -80,6 +81,12 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
           labelStyle={{ color: '#fafafa' }}
           itemStyle={{ color: '#fafafa' }}
           formatter={(value: number | undefined) => value !== undefined ? `${value} ms` : ''}
+          labelFormatter={(_, payload) => {
+            if (payload && payload[0] && payload[0].payload) {
+              return `Participant: ${payload[0].payload.sessionId}`;
+            }
+            return '';
+          }}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}

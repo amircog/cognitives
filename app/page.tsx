@@ -40,43 +40,28 @@ export default function HomePage() {
           ניסוי כיתה
         </p>
 
-        <div className="bg-card border border-border rounded-xl p-6 mb-8 text-right" dir="rtl">
-          <h2 className="text-lg font-semibold mb-4">הוראות</h2>
-          <ol className="space-y-3 text-muted list-none">
-            <li className="flex gap-3">
-              <span>
-                תראו מילים המוצגות בצבעי גופן שונים (אדום, ירוק או צהוב).
-              </span>
-              <span className="text-emerald-400 font-bold">.1</span>
+        <div className="bg-card border border-border rounded-xl p-6 mb-8" dir="rtl">
+          <h2 className="text-lg font-semibold mb-4 text-right">איך זה עובד?</h2>
+          <ol className="space-y-3 text-muted" style={{ listStylePosition: 'inside', textAlign: 'right' }}>
+            <li>
+              על המסך יופיעו מילים בשלושה צבעים שונים: אדום, ירוק או צהוב.
             </li>
-            <li className="flex gap-3">
-              <span>
-                זהו את <strong className="text-foreground">צבע הגופן</strong>,
-                לא את משמעות המילה. התעלמו ממה שהמילה אומרת!
-              </span>
-              <span className="text-emerald-400 font-bold">.2</span>
+            <li>
+              המשימה שלכם: לזהות את <strong className="text-foreground">צבע האותיות</strong> - לא את המילה עצמה!
             </li>
-            <li className="flex gap-3">
-              <span>
-                הניסוי מתחיל עם <strong className="text-foreground">5 ניסיונות אימון</strong>,
-                ואז ממשיך עם 36 ניסיונות ניסוייים.
-              </span>
-              <span className="text-emerald-400 font-bold">.3</span>
+            <li>
+              נתחיל ב-<strong className="text-foreground">5 ניסויי אימון</strong> ואחר כך נמשיך ל-36 ניסויים אמיתיים.
             </li>
-            <li className="flex gap-3">
-              <span>
-                הגיבו מהר ככל האפשר ובדיוק רב באמצעות הכפתורים או מקשי המקלדת
-                (R, G, Y).
-              </span>
-              <span className="text-emerald-400 font-bold">.4</span>
+            <li>
+              נסו להגיב מהר ככל האפשר, אבל גם בדיוק - השתמשו בכפתורים או במקשי המקלדת.
             </li>
           </ol>
 
-          <div className="flex items-center justify-end gap-2 mt-6 pt-4 border-t border-border text-sm text-muted">
+          <div className="flex items-center justify-end gap-2 mt-6 pt-4 border-t border-border text-sm text-muted" dir="rtl">
             <span>
               <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">Y</kbd> צהוב,{' '}
               <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">G</kbd> ירוק,{' '}
-              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">R</kbd> אדום :קיצורי מקלדת
+              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">R</kbd> אדום :מקשי קיצור
             </span>
             <Keyboard className="w-4 h-4" />
           </div>

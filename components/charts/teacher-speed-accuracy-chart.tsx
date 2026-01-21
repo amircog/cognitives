@@ -46,12 +46,13 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
       x: Math.round((d.congruentMean + d.incongruentMean) / 2),
       y: Math.round(d.accuracy * 10) / 10,
       name: group,
+      sessionId: d.sessionId.substring(0, 8), // Short session ID for display
     }));
 
   return (
     <ResponsiveContainer width="100%" height={500}>
       <ScatterChart
-        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+        margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
         <XAxis
@@ -86,6 +87,12 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
             if (name === 'Mean RT') return `${value} ms`;
             if (name === 'Accuracy') return `${value}%`;
             return value;
+          }}
+          labelFormatter={(_, payload) => {
+            if (payload && payload[0] && payload[0].payload) {
+              return `Participant: ${payload[0].payload.sessionId}`;
+            }
+            return '';
           }}
         />
         <Legend

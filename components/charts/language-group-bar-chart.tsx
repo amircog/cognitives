@@ -28,13 +28,32 @@ interface LanguageGroupBarChartProps {
 }
 
 export function LanguageGroupBarChart({ data }: LanguageGroupBarChartProps) {
-  const chartData = data.map((d) => ({
-    name: d.languageGroup,
-    Congruent: Math.round(d.congruentMean),
-    CongruentSEM: Math.round(d.congruentSEM),
-    Incongruent: Math.round(d.incongruentMean),
-    IncongruentSEM: Math.round(d.incongruentSEM),
-  }));
+  const chartData = data.map((d) => {
+    const isNonWords = d.languageGroup === 'Non-words';
+    // For non-words, combine all data into a baseline measure
+    if (isNonWords) {
+      const totalCount = d.congruentCount + d.incongruentCount;
+      const combinedMean = totalCount > 0
+        ? (d.congruentMean * d.congruentCount + d.incongruentMean * d.incongruentCount) / totalCount
+        : 0;
+      // Calculate combined SEM
+      const combinedSEM = totalCount > 0
+        ? Math.sqrt((Math.pow(d.congruentSEM, 2) * d.congruentCount + Math.pow(d.incongruentSEM, 2) * d.incongruentCount) / totalCount)
+        : 0;
+      return {
+        name: d.languageGroup,
+        Baseline: Math.round(combinedMean),
+        BaselineSEM: Math.round(combinedSEM),
+      };
+    }
+    return {
+      name: d.languageGroup,
+      Congruent: Math.round(d.congruentMean),
+      CongruentSEM: Math.round(d.congruentSEM),
+      Incongruent: Math.round(d.incongruentMean),
+      IncongruentSEM: Math.round(d.incongruentSEM),
+    };
+  });
 
   return (
     <ResponsiveContainer width="100%" height={400}>
@@ -70,6 +89,9 @@ export function LanguageGroupBarChart({ data }: LanguageGroupBarChartProps) {
         </Bar>
         <Bar dataKey="Incongruent" fill="#f43f5e" radius={[8, 8, 0, 0]}>
           <ErrorBar dataKey="IncongruentSEM" width={4} strokeWidth={2} stroke="#f43f5e" />
+        </Bar>
+        <Bar dataKey="Baseline" fill="#71717a" radius={[8, 8, 0, 0]}>
+          <ErrorBar dataKey="BaselineSEM" width={4} strokeWidth={2} stroke="#71717a" />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
