@@ -16,8 +16,20 @@ function createTrial(
   wordText: string,
   colorName: ColorKey
 ): Trial {
-  // Determine if congruent: only English color words can be congruent
-  const isCongruent = wordText === colorName;
+  // Determine if congruent: word meaning matches font color
+  // English: red, green, yellow
+  // Hebrew: adom (red), yarok (green), tsahov (yellow)
+  // Spanish: rojo (red), verde (green), amarillo (yellow)
+  let isCongruent = false;
+
+  const lowerWord = wordText.toLowerCase();
+  if (colorName === 'red' && ['red', 'adom', 'rojo'].includes(lowerWord)) {
+    isCongruent = true;
+  } else if (colorName === 'green' && ['green', 'yarok', 'verde'].includes(lowerWord)) {
+    isCongruent = true;
+  } else if (colorName === 'yellow' && ['yellow', 'tsahov', 'amarillo'].includes(lowerWord)) {
+    isCongruent = true;
+  }
 
   return {
     id,

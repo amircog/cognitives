@@ -22,29 +22,11 @@ export default function ThanksPage() {
         </motion.div>
 
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
-          Thank You!
+          !תודה
         </h1>
 
-        <p className="text-xl text-muted mb-8">
-          You have successfully completed the Stroop Effect experiment.
-          Your responses have been recorded and will contribute to our
-          understanding of cognitive interference.
-        </p>
-
-        <div className="bg-card border border-border rounded-xl p-6 mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Heart className="w-5 h-5 text-rose-400" />
-            <h2 className="text-lg font-semibold">What's Next?</h2>
-          </div>
-          <p className="text-muted">
-            Your teacher will share the aggregated results with the class.
-            This data helps demonstrate how our brains process conflicting
-            information and the fascinating phenomenon of cognitive interference.
-          </p>
-        </div>
-
         <p className="text-sm text-muted">
-          You may now close this window.
+          ניתן כעת לסגור את החלון
         </p>
       </motion.div>
     </main>

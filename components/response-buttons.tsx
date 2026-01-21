@@ -8,6 +8,7 @@ import { getColorFromKey } from '@/lib/experiment';
 interface ResponseButtonsProps {
   onResponse: (color: ColorKey) => void;
   disabled: boolean;
+  highlightCorrect?: ColorKey | null;
 }
 
 const buttonConfig: { key: ColorKey; label: string; shortcut: string }[] = [
@@ -16,7 +17,7 @@ const buttonConfig: { key: ColorKey; label: string; shortcut: string }[] = [
   { key: 'red', label: 'R', shortcut: 'r' },
 ];
 
-export function ResponseButtons({ onResponse, disabled }: ResponseButtonsProps) {
+export function ResponseButtons({ onResponse, disabled, highlightCorrect }: ResponseButtonsProps) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (disabled) return;
@@ -32,21 +33,27 @@ export function ResponseButtons({ onResponse, disabled }: ResponseButtonsProps) 
 
   return (
     <div className="flex gap-4 md:gap-6">
-      {buttonConfig.map(({ key, label }) => (
-        <motion.button
-          key={key}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => onResponse(key)}
-          disabled={disabled}
-          className="w-16 h-16 md:w-20 md:h-20 rounded-xl font-bold text-2xl md:text-3xl
-                     bg-white text-zinc-900 border-2 border-zinc-300
-                     transition-opacity disabled:opacity-50 disabled:cursor-not-allowed
-                     shadow-lg hover:border-zinc-400"
-        >
-          {label}
-        </motion.button>
-      ))}
+      {buttonConfig.map(({ key, label }) => {
+        const isHighlighted = highlightCorrect === key;
+        return (
+          <motion.button
+            key={key}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            animate={isHighlighted ? { scale: [1, 1.1, 1], borderColor: ['#3b82f6', '#10b981', '#3b82f6'] } : {}}
+            transition={isHighlighted ? { duration: 0.6, repeat: Infinity } : {}}
+            onClick={() => onResponse(key)}
+            disabled={disabled}
+            className={`w-16 h-16 md:w-20 md:h-20 rounded-xl font-bold text-2xl md:text-3xl
+                       bg-white text-zinc-900 border-4
+                       transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                       shadow-lg hover:border-zinc-400
+                       ${isHighlighted ? 'border-emerald-400 ring-4 ring-emerald-400/50' : 'border-zinc-300'}`}
+          >
+            {label}
+          </motion.button>
+        );
+      })}
     </div>
   );
 }

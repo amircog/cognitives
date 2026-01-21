@@ -61,5 +61,5 @@ export const PRACTICE_WORDS = [
   { word: 'cognition', color: 'green' as ColorKey },
   { word: 'class', color: 'yellow' as ColorKey },
   { word: 'enjoy', color: 'green' as ColorKey },
-  { word: 'experiment', color: 'red' as ColorKey }
+  { word: 'life', color: 'red' as ColorKey }
 ];

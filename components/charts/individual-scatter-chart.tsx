@@ -50,7 +50,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
   return (
     <ResponsiveContainer width="100%" height={500}>
       <ScatterChart
-        margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
         <XAxis
@@ -59,7 +59,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
           name="Congruent RT"
           stroke="#a1a1aa"
           tick={{ fill: '#a1a1aa' }}
-          label={{ value: 'Congruent RT (ms)', position: 'insideBottom', offset: -10, fill: '#a1a1aa' }}
+          label={{ value: 'Congruent RT (ms)', position: 'insideBottom', offset: -5, fill: '#a1a1aa' }}
         />
         <YAxis
           type="number"

@@ -26,6 +26,7 @@ export default function ExperimentPage() {
   const [isPractice, setIsPractice] = useState(true);
   const [isWaiting, setIsWaiting] = useState(false);
   const [results, setResults] = useState<TrialResult[]>([]);
+  const [practiceError, setPracticeError] = useState<ColorKey | null>(null);
   const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
@@ -69,11 +70,22 @@ export default function ExperimentPage() {
       const currentTrial = currentTrials[currentIndex];
       const correct = isCorrectResponse(currentTrial, response);
 
-      // Show inter-trial blank
-      setIsWaiting(true);
-
-      // If in practice mode, don't save results
+      // If in practice mode, handle errors
       if (isPractice) {
+        if (!correct) {
+          // Show error feedback - highlight the correct button
+          setPracticeError(currentTrial.colorName as ColorKey);
+          // Reset time for new attempt
+          startTimeRef.current = getTimestamp();
+          return;
+        }
+
+        // Clear any error state
+        setPracticeError(null);
+
+        // Show inter-trial blank
+        setIsWaiting(true);
+
         if (currentIndex + 1 >= PRACTICE_TRIALS_COUNT) {
           // Practice complete - move to real experiment
           setTimeout(() => {
@@ -90,6 +102,9 @@ export default function ExperimentPage() {
         }
         return;
       }
+
+      // Show inter-trial blank for real trials
+      setIsWaiting(true);
 
       // Real experiment - save results
       const result: TrialResult = {
@@ -168,7 +183,11 @@ export default function ExperimentPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <ResponseButtons onResponse={handleResponse} disabled={isWaiting} />
+          <ResponseButtons
+            onResponse={handleResponse}
+            disabled={isWaiting}
+            highlightCorrect={isPractice ? practiceError : null}
+          />
         </motion.div>
       </div>
 
