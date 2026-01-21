@@ -81,7 +81,8 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
           }}
           labelStyle={{ color: '#fafafa' }}
           itemStyle={{ color: '#fafafa' }}
-          formatter={(value: number, name: string) => {
+          formatter={(value: number | undefined, name: string | undefined) => {
+            if (value === undefined) return '';
             if (name === 'Mean RT') return `${value} ms`;
             if (name === 'Accuracy') return `${value}%`;
             return value;

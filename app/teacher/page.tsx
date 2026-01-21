@@ -59,31 +59,31 @@ export default function TeacherDashboard() {
       setTotalTrials(data.length);
 
       // Get unique sessions
-      const uniqueSessions = new Set(data.map((r: TrialResult) => r.session_id));
+      const uniqueSessions = new Set<string>(data.map((r: TrialResult) => r.session_id));
       setTotalSessions(uniqueSessions.size);
 
       // Calculate aggregate data per language group
       const aggregates: AggregateData[] = LANGUAGE_GROUPS.map((group) => {
         const groupResults = data.filter((r: TrialResult) => getLanguageGroup(r.word_text) === group);
 
-        const congruentResults = groupResults.filter((r) => r.is_congruent && r.is_correct);
-        const incongruentResults = groupResults.filter((r) => !r.is_congruent && r.is_correct);
+        const congruentResults = groupResults.filter((r: TrialResult) => r.is_congruent && r.is_correct);
+        const incongruentResults = groupResults.filter((r: TrialResult) => !r.is_congruent && r.is_correct);
 
         const congruentMean =
           congruentResults.length > 0
-            ? congruentResults.reduce((sum, r) => sum + r.reaction_time_ms, 0) / congruentResults.length
+            ? congruentResults.reduce((sum: number, r: TrialResult) => sum + r.reaction_time_ms, 0) / congruentResults.length
             : 0;
 
         const incongruentMean =
           incongruentResults.length > 0
-            ? incongruentResults.reduce((sum, r) => sum + r.reaction_time_ms, 0) / incongruentResults.length
+            ? incongruentResults.reduce((sum: number, r: TrialResult) => sum + r.reaction_time_ms, 0) / incongruentResults.length
             : 0;
 
         // Calculate SEM (Standard Error of the Mean)
         const calculateSEM = (results: TrialResult[], mean: number) => {
           if (results.length <= 1) return 0;
           const variance =
-            results.reduce((sum, r) => sum + Math.pow(r.reaction_time_ms - mean, 2), 0) / results.length;
+            results.reduce((sum: number, r: TrialResult) => sum + Math.pow(r.reaction_time_ms - mean, 2), 0) / results.length;
           const sd = Math.sqrt(variance);
           return sd / Math.sqrt(results.length);
         };
@@ -115,20 +115,20 @@ export default function TeacherDashboard() {
 
           if (groupResults.length === 0) return;
 
-          const congruentResults = groupResults.filter((r) => r.is_congruent);
-          const incongruentResults = groupResults.filter((r) => !r.is_congruent);
+          const congruentResults = groupResults.filter((r: TrialResult) => r.is_congruent);
+          const incongruentResults = groupResults.filter((r: TrialResult) => !r.is_congruent);
 
           const congruentMean =
             congruentResults.length > 0
-              ? congruentResults.reduce((sum, r) => sum + r.reaction_time_ms, 0) / congruentResults.length
+              ? congruentResults.reduce((sum: number, r: TrialResult) => sum + r.reaction_time_ms, 0) / congruentResults.length
               : 0;
 
           const incongruentMean =
             incongruentResults.length > 0
-              ? incongruentResults.reduce((sum, r) => sum + r.reaction_time_ms, 0) / incongruentResults.length
+              ? incongruentResults.reduce((sum: number, r: TrialResult) => sum + r.reaction_time_ms, 0) / incongruentResults.length
               : 0;
 
-          const correctCount = groupResults.filter((r) => r.is_correct).length;
+          const correctCount = groupResults.filter((r: TrialResult) => r.is_correct).length;
           const accuracy = groupResults.length > 0 ? (correctCount / groupResults.length) * 100 : 0;
 
           subjects.push({

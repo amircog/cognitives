@@ -79,7 +79,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
           }}
           labelStyle={{ color: '#fafafa' }}
           itemStyle={{ color: '#fafafa' }}
-          formatter={(value: number) => `${value} ms`}
+          formatter={(value: number | undefined) => value !== undefined ? `${value} ms` : ''}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
