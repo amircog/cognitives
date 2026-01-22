@@ -120,7 +120,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
             { x: 1000, y: 1000 }
           ]}
           line={{ stroke: '#a1a1aa', strokeWidth: 2, strokeDasharray: '5 5' }}
-          shape={() => null}
+          shape={<span />}
           isAnimationActive={false}
         />
         <Scatter
