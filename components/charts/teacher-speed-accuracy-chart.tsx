@@ -34,6 +34,33 @@ const LANGUAGE_GROUP_COLORS: Record<LanguageGroup, string> = {
   'Non-words': '#6b7280',
 };
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (!active || !payload || !payload[0]) return null;
+
+  const data = payload[0].payload;
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '8px 12px',
+      }}
+    >
+      <p style={{ color: '#fafafa', marginBottom: '4px', fontWeight: 'bold' }}>
+        {data.participantName || 'Unknown'}
+      </p>
+      <p style={{ color: '#fafafa', margin: '2px 0' }}>
+        Mean RT: {data.x} ms
+      </p>
+      <p style={{ color: '#fafafa', margin: '2px 0' }}>
+        Accuracy: {data.y}%
+      </p>
+    </div>
+  );
+};
+
 export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
   const groupedData = {
     English: data.filter((d) => d.languageGroup === 'English'),
@@ -75,26 +102,8 @@ export function TeacherSpeedAccuracyChart({ data }: SpeedAccuracyChartProps) {
         />
         <ZAxis range={[100, 100]} />
         <Tooltip
+          content={<CustomTooltip />}
           cursor={{ strokeDasharray: '3 3' }}
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid #27272a',
-            borderRadius: '8px',
-          }}
-          labelStyle={{ color: '#fafafa' }}
-          itemStyle={{ color: '#fafafa' }}
-          formatter={(value: number | undefined, name: string | undefined) => {
-            if (value === undefined) return '';
-            if (name === 'Mean RT') return `${value} ms`;
-            if (name === 'Accuracy') return `${value}%`;
-            return value;
-          }}
-          labelFormatter={(_, payload) => {
-            if (payload && payload[0] && payload[0].payload) {
-              return `Participant: ${payload[0].payload.participantName}`;
-            }
-            return '';
-          }}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
