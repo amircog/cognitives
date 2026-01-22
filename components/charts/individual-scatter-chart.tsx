@@ -112,12 +112,16 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
         />
-        {/* Diagonal line y=x */}
-        <ReferenceLine
-          segment={[{ x: 0, y: 0 }, { x: 1000, y: 1000 }]}
-          stroke="#a1a1aa"
-          strokeDasharray="5 5"
-          strokeWidth={2}
+        {/* Diagonal line y=x - create a dummy scatter series */}
+        <Scatter
+          name=""
+          data={[
+            { x: 0, y: 0 },
+            { x: 1000, y: 1000 }
+          ]}
+          line={{ stroke: '#a1a1aa', strokeWidth: 2, strokeDasharray: '5 5' }}
+          shape={() => null}
+          isAnimationActive={false}
         />
         <Scatter
           name="English"
