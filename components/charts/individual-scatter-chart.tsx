@@ -114,7 +114,7 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
         />
         {/* Diagonal line y=x */}
         <ReferenceLine
-          segment={[{ x: 0, y: 0 }, { x: 2000, y: 2000 }]}
+          segment={[{ x: 0, y: 0 }, { x: 1000, y: 1000 }]}
           stroke="#71717a"
           strokeDasharray="5 5"
           strokeWidth={2}
