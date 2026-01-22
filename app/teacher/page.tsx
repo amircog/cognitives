@@ -110,6 +110,7 @@ export default function TeacherDashboard() {
       uniqueSessions.forEach((sessionId) => {
         const sessionResults = data.filter((r: TrialResult) => r.session_id === sessionId);
         const participantName = sessionResults[0]?.participant_name;
+        console.log('Session:', sessionId.substring(0, 8), 'Participant name:', participantName);
 
         // Calculate per language group for this subject
         LANGUAGE_GROUPS.forEach((group) => {

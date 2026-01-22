@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   ZAxis,
   ReferenceLine,
+  TooltipProps,
 } from 'recharts';
 import { LanguageGroup } from '@/lib/language-groups';
 
@@ -34,7 +35,36 @@ const LANGUAGE_GROUP_COLORS: Record<LanguageGroup, string> = {
   'Non-words': '#6b7280',
 };
 
+const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  if (!active || !payload || !payload[0]) return null;
+
+  const data = payload[0].payload;
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '8px 12px',
+      }}
+    >
+      <p style={{ color: '#fafafa', marginBottom: '4px', fontWeight: 'bold' }}>
+        {data.participantName || 'Unknown'}
+      </p>
+      <p style={{ color: '#fafafa', margin: '2px 0' }}>
+        Congruent RT: {data.x} ms
+      </p>
+      <p style={{ color: '#fafafa', margin: '2px 0' }}>
+        Incongruent RT: {data.y} ms
+      </p>
+    </div>
+  );
+};
+
 export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
+  console.log('IndividualScatterChart received data:', data);
+
   const groupedData = {
     English: data.filter((d) => d.languageGroup === 'English'),
     Hebrew: data.filter((d) => d.languageGroup === 'Hebrew'),
@@ -42,13 +72,16 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
     'Non-words': data.filter((d) => d.languageGroup === 'Non-words'),
   };
 
-  const scatterData = (group: LanguageGroup) =>
-    groupedData[group].map((d) => ({
+  const scatterData = (group: LanguageGroup) => {
+    const mapped = groupedData[group].map((d) => ({
       x: Math.round(d.congruentMean),
       y: Math.round(d.incongruentMean),
       name: group,
       participantName: d.participantName || d.sessionId.substring(0, 8),
     }));
+    console.log(`Scatter data for ${group}:`, mapped);
+    return mapped;
+  };
 
   return (
     <ResponsiveContainer width="100%" height={500}>
@@ -74,21 +107,8 @@ export function IndividualScatterChart({ data }: IndividualScatterChartProps) {
         />
         <ZAxis range={[100, 100]} />
         <Tooltip
+          content={<CustomTooltip />}
           cursor={{ strokeDasharray: '3 3' }}
-          contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid #27272a',
-            borderRadius: '8px',
-          }}
-          labelStyle={{ color: '#fafafa' }}
-          itemStyle={{ color: '#fafafa' }}
-          formatter={(value: number | undefined) => value !== undefined ? `${value} ms` : ''}
-          labelFormatter={(_, payload) => {
-            if (payload && payload[0] && payload[0].payload) {
-              return `Participant: ${payload[0].payload.participantName}`;
-            }
-            return '';
-          }}
         />
         <Legend
           wrapperStyle={{ color: '#a1a1aa' }}
