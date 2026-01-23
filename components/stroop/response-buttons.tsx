@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { COLORS, ColorKey } from '@/types';
-import { getColorFromKey } from '@/lib/experiment';
+import { COLORS, ColorKey } from '@/types/stroop';
+import { getColorFromKey } from '@/lib/stroop/experiment';
 
 interface ResponseButtonsProps {
   onResponse: (color: ColorKey) => void;

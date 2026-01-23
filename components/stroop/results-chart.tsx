@@ -11,7 +11,7 @@ import {
   Legend,
   ErrorBar,
 } from 'recharts';
-import { TrialResult, WORDS } from '@/types';
+import { TrialResult, WORDS } from '@/types/stroop';
 
 interface ResultsChartProps {
   results: TrialResult[];

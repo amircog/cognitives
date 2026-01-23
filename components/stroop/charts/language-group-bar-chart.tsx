@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   ErrorBar,
 } from 'recharts';
-import { LanguageGroup } from '@/lib/language-groups';
+import { LanguageGroup } from '@/lib/stroop/language-groups';
 
 interface AggregateData {
   languageGroup: LanguageGroup;

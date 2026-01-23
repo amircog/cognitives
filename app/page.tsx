@@ -1,25 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { v4 as uuidv4 } from 'uuid';
-import { Beaker, Keyboard } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Beaker, Brain, FlaskConical } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
-  const [fullName, setFullName] = useState('');
 
-  const handleStart = () => {
-    if (!fullName.trim()) {
-      alert('נא להזין שם מלא');
-      return;
-    }
-    const sessionId = uuidv4();
-    sessionStorage.setItem('stroop_session_id', sessionId);
-    sessionStorage.setItem('stroop_participant_name', fullName.trim());
-    router.push('/experiment');
-  };
+  const experiments = [
+    {
+      id: 'stroop',
+      title: 'Stroop Effect',
+      description: 'Explore selective attention and cognitive interference',
+      descriptionHe: 'חקרו קשב סלקטיבי והפרעות קוגניטיביות',
+      icon: Brain,
+      color: 'emerald',
+      available: true,
+    },
+    // Future experiments can be added here
+  ];
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8">
@@ -27,77 +26,53 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="text-center max-w-2xl"
+        className="text-center max-w-4xl"
       >
         <div className="flex items-center justify-center gap-3 mb-6">
-          <Beaker className="w-10 h-10 text-emerald-400" />
+          <FlaskConical className="w-12 h-12 text-emerald-400" />
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
             תהליכים קוגניטיביים
           </h1>
         </div>
 
-        <p className="text-xl text-muted mb-8">
-          ניסוי כיתה
+        <p className="text-xl text-muted mb-12">
+          ניסויי כיתה • Cognitive Processes Course Experiments
         </p>
 
-        <div className="bg-card border border-border rounded-xl p-6 mb-8" dir="rtl">
-          <h2 className="text-lg font-semibold mb-4 text-right">איך זה עובד?</h2>
-          <ol className="space-y-3 text-muted" style={{ listStylePosition: 'inside', textAlign: 'right' }}>
-            <li>
-              על המסך יופיעו מילים בשלושה צבעים שונים: אדום, ירוק או צהוב.
-            </li>
-            <li>
-              המשימה שלכם: לזהות את <strong className="text-foreground">צבע האותיות</strong> - לא את המילה עצמה!
-            </li>
-            <li>
-              נתחיל ב-<strong className="text-foreground">5 ניסויי אימון</strong> ואחר כך נמשיך ל-36 ניסויים אמיתיים.
-            </li>
-            <li>
-              נסו להגיב מהר ככל האפשר, אבל גם בדיוק - השתמשו בכפתורים או במקשי המקלדת.
-            </li>
-          </ol>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {experiments.map((experiment) => (
+            <motion.div
+              key={experiment.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                if (experiment.available) {
+                  router.push(`/${experiment.id}`);
+                }
+              }}
+              className={`
+                bg-card border border-border rounded-xl p-8 cursor-pointer
+                transition-all hover:border-${experiment.color}-400/50
+                ${!experiment.available ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+            >
+              <div className={`flex items-center justify-center mb-4`}>
+                <experiment.icon className={`w-16 h-16 text-${experiment.color}-400`} />
+              </div>
 
-          <div className="flex items-center justify-end gap-2 mt-6 pt-4 border-t border-border text-sm text-muted" dir="rtl">
-            <span>
-              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">Y</kbd> צהוב,{' '}
-              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">G</kbd> ירוק,{' '}
-              <kbd className="px-1.5 py-0.5 bg-background rounded text-foreground">R</kbd> אדום :מקשי קיצור
-            </span>
-            <Keyboard className="w-4 h-4" />
-          </div>
+              <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
+              <p className="text-muted text-sm mb-2">{experiment.description}</p>
+              <p className="text-muted text-sm" dir="rtl">{experiment.descriptionHe}</p>
+
+              {!experiment.available && (
+                <p className="text-yellow-400 text-sm mt-4">Coming Soon</p>
+              )}
+            </motion.div>
+          ))}
         </div>
 
-        <div className="w-full max-w-md mb-6" dir="rtl">
-          <label htmlFor="fullName" className="block text-sm font-medium mb-2 text-right">
-            שם מלא
-          </label>
-          <input
-            id="fullName"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            placeholder="הזן שם מלא"
-            className="w-full px-4 py-3 bg-card border border-border rounded-lg
-                       text-foreground placeholder:text-muted
-                       focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent
-                       text-right"
-            dir="rtl"
-          />
-        </div>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleStart}
-          className="px-8 py-4 bg-emerald-400 text-zinc-900 font-bold text-lg rounded-xl
-                     shadow-lg shadow-emerald-400/20 transition-colors hover:bg-emerald-300"
-        >
-          התחל ניסוי
-        </motion.button>
-
-        <p className="mt-6 text-sm text-muted" dir="rtl">
-          5 אימון + 36 ניסויים • לוקח כ-3-4 דקות
+        <p className="mt-12 text-sm text-muted">
+          Select an experiment to begin
         </p>
       </motion.div>
     </main>

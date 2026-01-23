@@ -11,7 +11,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts';
-import { TrialResult, WORDS } from '@/types';
+import { TrialResult, WORDS } from '@/types/stroop';
 
 interface SpeedAccuracyChartProps {
   results: TrialResult[];

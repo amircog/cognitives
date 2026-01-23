@@ -12,7 +12,7 @@ import {
   ReferenceArea,
   Cell,
 } from 'recharts';
-import { TrialResult } from '@/types';
+import { TrialResult } from '@/types/stroop';
 
 interface DistributionChartProps {
   results: TrialResult[];

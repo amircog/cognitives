@@ -11,7 +11,7 @@ import {
   Scatter,
   ComposedChart,
 } from 'recharts';
-import { TrialResult, WORDS } from '@/types';
+import { TrialResult, WORDS } from '@/types/stroop';
 
 interface SpaghettiChartProps {
   results: TrialResult[];

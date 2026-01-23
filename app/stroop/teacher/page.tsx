@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { GraduationCap, RefreshCw, BarChart3 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { TrialResult } from '@/types';
-import { getLanguageGroup, LANGUAGE_GROUPS, type LanguageGroup } from '@/lib/language-groups';
-import { LanguageGroupBarChart } from '@/components/charts/language-group-bar-chart';
-import { IndividualScatterChart } from '@/components/charts/individual-scatter-chart';
-import { TeacherSpeedAccuracyChart } from '@/components/charts/teacher-speed-accuracy-chart';
+import { TrialResult } from '@/types/stroop';
+import { getLanguageGroup, LANGUAGE_GROUPS, type LanguageGroup } from '@/lib/stroop/language-groups';
+import { LanguageGroupBarChart } from '@/components/stroop/charts/charts/language-group-bar-chart';
+import { IndividualScatterChart } from '@/components/stroop/charts/charts/individual-scatter-chart';
+import { TeacherSpeedAccuracyChart } from '@/components/stroop/charts/charts/teacher-speed-accuracy-chart';
 
 interface AggregateData {
   languageGroup: LanguageGroup;

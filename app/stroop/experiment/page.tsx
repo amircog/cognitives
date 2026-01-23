@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import { RotateCcw } from 'lucide-react';
-import { TrialDisplay } from '@/components/trial-display';
-import { ResponseButtons } from '@/components/response-buttons';
-import { ProgressBar } from '@/components/progress-bar';
-import { generateTrials, generatePracticeTrials, isCorrectResponse } from '@/lib/experiment';
-import { getTimestamp, calculateReactionTime } from '@/lib/timing';
+import { TrialDisplay } from '@/components/stroop/trial-display';
+import { ResponseButtons } from '@/components/stroop/response-buttons';
+import { ProgressBar } from '@/components/stroop/progress-bar';
+import { generateTrials, generatePracticeTrials, isCorrectResponse } from '@/lib/stroop/experiment';
+import { getTimestamp, calculateReactionTime } from '@/lib/stroop/timing';
 import { supabase } from '@/lib/supabase';
-import { Trial, TrialResult, ColorKey } from '@/types';
+import { Trial, TrialResult, ColorKey } from '@/types/stroop';
 
 const PRACTICE_TRIALS_COUNT = 5;
 const TOTAL_TRIALS = 36;
@@ -135,7 +135,7 @@ export default function ExperimentPage() {
       if (currentIndex + 1 >= TOTAL_TRIALS) {
         // Experiment complete - navigate to thank you page
         setTimeout(() => {
-          router.push('/thanks');
+          router.push('/stroop/thanks');
         }, INTER_TRIAL_DELAY);
       } else {
         // Move to next trial after delay

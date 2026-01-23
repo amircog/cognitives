@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Trial } from '@/types';
+import { Trial } from '@/types/stroop';
 
 interface TrialDisplayProps {
   trial: Trial;

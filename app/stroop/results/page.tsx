@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ResultsChart } from '@/components/results-chart';
-import { VisualizationTabs } from '@/components/visualization-tabs';
-import { DistributionChart } from '@/components/charts/distribution-chart';
-import { SpaghettiChart } from '@/components/charts/spaghetti-chart';
-import { DifferenceChart } from '@/components/charts/difference-chart';
-import { SpeedAccuracyChart } from '@/components/charts/speed-accuracy-chart';
-import { TrialResult, ResultsSummary } from '@/types';
-import { calculateAverage } from '@/lib/timing';
+import { ResultsChart } from '@/components/stroop/results-chart';
+import { VisualizationTabs } from '@/components/stroop/visualization-tabs';
+import { DistributionChart } from '@/components/stroop/charts/charts/distribution-chart';
+import { SpaghettiChart } from '@/components/stroop/charts/charts/spaghetti-chart';
+import { DifferenceChart } from '@/components/stroop/charts/charts/difference-chart';
+import { SpeedAccuracyChart } from '@/components/stroop/charts/charts/speed-accuracy-chart';
+import { TrialResult, ResultsSummary } from '@/types/stroop';
+import { calculateAverage } from '@/lib/stroop/timing';
 import { RotateCcw, TrendingUp, Target, Clock, Trash2, Database } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 

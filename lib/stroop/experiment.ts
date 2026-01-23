@@ -1,4 +1,4 @@
-import { Trial, COLORS, WORDS, PRACTICE_WORDS, ColorKey } from '@/types';
+import { Trial, COLORS, WORDS, PRACTICE_WORDS, ColorKey } from '@/types/stroop';
 
 const COLOR_KEYS: ColorKey[] = ['red', 'green', 'yellow'];
 

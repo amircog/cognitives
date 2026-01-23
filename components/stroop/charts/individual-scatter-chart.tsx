@@ -12,7 +12,7 @@ import {
   ZAxis,
   ReferenceLine,
 } from 'recharts';
-import { LanguageGroup } from '@/lib/language-groups';
+import { LanguageGroup } from '@/lib/stroop/language-groups';
 
 interface SubjectData {
   sessionId: string;
