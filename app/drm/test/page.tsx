@@ -104,7 +104,9 @@ export default function DRMTestPage() {
 
       if (error) {
         console.error('Error saving results:', error);
-        alert('שגיאה בשמירת התוצאות. אנא נסה שוב.');
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('Sample result:', JSON.stringify(results[0], null, 2));
+        alert(`שגיאה בשמירת התוצאות: ${error.message}\n\nבדוק את ה-console לפרטים נוספים.`);
         setIsSaving(false);
         return;
       }
