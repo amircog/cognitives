@@ -1,128 +1,80 @@
 import { WordList, StudyTrial, TestItem } from '@/types/drm';
 
-// Classic DRM word lists - 10 themes, 15 words each
+// DRM word lists - 6 themes, 12 Hebrew words each
 // Each list is semantically related to a critical lure (not presented during study)
 
 export const WORD_LISTS: WordList[] = [
   {
     theme: 'Sleep',
     themeHe: 'שינה',
-    criticalLure: 'sleep',
+    criticalLure: 'שינה',
     studyWords: [
-      'bed', 'rest', 'awake', 'tired', 'dream',
-      'wake', 'snooze', 'blanket', 'doze', 'slumber',
-      'snore', 'nap', 'pillow', 'yawn', 'drowsy'
+      'מיטה', 'מנוחה', 'ער', 'עייף', 'חלום',
+      'להתעורר', 'לנמנם', 'שמיכה', 'כרית', 'לישון',
+      'לפהק', 'מנומנם'
     ],
-    relatedDistractors: ['peace', 'night', 'comfort', 'relax'],
-    unrelatedDistractors: ['chair', 'pen', 'cup', 'door']
+    relatedDistractors: ['שקט', 'לילה', 'נוח', 'להירגע'],
+    unrelatedDistractors: [] // Will be populated with unrelated words from other lists
   },
   {
     theme: 'Doctor',
     themeHe: 'רופא',
-    criticalLure: 'doctor',
+    criticalLure: 'רופא',
     studyWords: [
-      'nurse', 'sick', 'medicine', 'health', 'hospital',
-      'dentist', 'physician', 'ill', 'patient', 'office',
-      'stethoscope', 'surgeon', 'clinic', 'cure', 'therapy'
+      'אחות', 'חולה', 'תרופה', 'בריאות', 'בית חולים',
+      'רופא שיניים', 'מחלה', 'מרפאה', 'סטטוסקופ',
+      'טיפול', 'מרשם', 'מזרק'
     ],
-    relatedDistractors: ['medical', 'emergency', 'prescription', 'diagnosis'],
-    unrelatedDistractors: ['book', 'tree', 'phone', 'shirt']
+    relatedDistractors: ['רפואי', 'חירום', 'אבחנה', 'ניתוח'],
+    unrelatedDistractors: []
   },
   {
     theme: 'Chair',
     themeHe: 'כיסא',
-    criticalLure: 'chair',
+    criticalLure: 'כיסא',
     studyWords: [
-      'table', 'sit', 'legs', 'seat', 'couch',
-      'desk', 'recliner', 'sofa', 'wood', 'cushion',
-      'swivel', 'stool', 'bench', 'sitting', 'furniture'
+      'שולחן', 'לשבת', 'רגליים', 'מושב', 'ספה',
+      'שולחן כתיבה', 'כורסה', 'עץ', 'כרית',
+      'שרפרף', 'ספסל', 'רהיט'
     ],
-    relatedDistractors: ['comfort', 'armrest', 'rocker', 'leather'],
-    unrelatedDistractors: ['cloud', 'fish', 'lamp', 'music']
+    relatedDistractors: ['נוחות', 'משענת', 'עור', 'ריפוד'],
+    unrelatedDistractors: []
   },
   {
     theme: 'Sweet',
     themeHe: 'מתוק',
-    criticalLure: 'sweet',
+    criticalLure: 'מתוק',
     studyWords: [
-      'sour', 'candy', 'sugar', 'bitter', 'good',
-      'taste', 'tooth', 'nice', 'honey', 'soda',
-      'chocolate', 'cake', 'dessert', 'flavor', 'syrup'
+      'חמוץ', 'סוכריה', 'סוכר', 'מר', 'טעים',
+      'טעם', 'שן', 'דבש', 'משקה',
+      'שוקולד', 'עוגה', 'קינוח'
     ],
-    relatedDistractors: ['delicious', 'pie', 'cookie', 'cream'],
-    unrelatedDistractors: ['stone', 'paper', 'wind', 'road']
+    relatedDistractors: ['מעדן', 'פאי', 'עוגיה', 'קרם'],
+    unrelatedDistractors: []
   },
   {
     theme: 'Mountain',
     themeHe: 'הר',
-    criticalLure: 'mountain',
+    criticalLure: 'הר',
     studyWords: [
-      'hill', 'valley', 'climb', 'summit', 'top',
-      'molehill', 'peak', 'range', 'altitude', 'high',
-      'cliff', 'steep', 'slope', 'snow', 'hike'
+      'גבעה', 'עמק', 'לטפס', 'פסגה', 'ראש',
+      'גבוה', 'צוק', 'תלול', 'מדרון', 'שלג',
+      'גובה', 'נוף'
     ],
-    relatedDistractors: ['Everest', 'elevation', 'ridge', 'alps'],
-    unrelatedDistractors: ['keyboard', 'mirror', 'towel', 'coin']
-  },
-  {
-    theme: 'Needle',
-    themeHe: 'מחט',
-    criticalLure: 'needle',
-    studyWords: [
-      'thread', 'pin', 'eye', 'sewing', 'sharp',
-      'point', 'prick', 'thimble', 'haystack', 'thorn',
-      'hurt', 'injection', 'syringe', 'cloth', 'knitting'
-    ],
-    relatedDistractors: ['stitch', 'pierce', 'poke', 'painful'],
-    unrelatedDistractors: ['window', 'orange', 'grass', 'wheel']
-  },
-  {
-    theme: 'Smoke',
-    themeHe: 'עשן',
-    criticalLure: 'smoke',
-    studyWords: [
-      'cigarette', 'puff', 'blaze', 'billows', 'pollution',
-      'ashes', 'cigar', 'chimney', 'fire', 'tobacco',
-      'stink', 'pipe', 'lungs', 'cancer', 'inhale'
-    ],
-    relatedDistractors: ['fumes', 'vapor', 'smolder', 'fog'],
-    unrelatedDistractors: ['pencil', 'desk', 'hat', 'boot']
+    relatedDistractors: ['אוורסט', 'רום', 'הרים', 'אלפים'],
+    unrelatedDistractors: []
   },
   {
     theme: 'Cold',
     themeHe: 'קר',
-    criticalLure: 'cold',
+    criticalLure: 'קר',
     studyWords: [
-      'hot', 'snow', 'warm', 'winter', 'ice',
-      'wet', 'frigid', 'chilly', 'heat', 'weather',
-      'freeze', 'air', 'shiver', 'arctic', 'frost'
+      'חם', 'שלג', 'חמים', 'חורף', 'קרח',
+      'רטוב', 'קפוא', 'צונן', 'מזג אויר',
+      'להקפיא', 'לרעוד', 'כפור'
     ],
-    relatedDistractors: ['glacier', 'icy', 'chill', 'freezing'],
-    unrelatedDistractors: ['notebook', 'picture', 'scissors', 'balloon']
-  },
-  {
-    theme: 'Slow',
-    themeHe: 'איטי',
-    criticalLure: 'slow',
-    studyWords: [
-      'fast', 'lethargic', 'stop', 'listless', 'snail',
-      'sluggish', 'delay', 'traffic', 'turtle', 'speed',
-      'quick', 'pace', 'crawl', 'gradual', 'lag'
-    ],
-    relatedDistractors: ['leisurely', 'dawdle', 'tardy', 'unhurried'],
-    unrelatedDistractors: ['flower', 'bottle', 'brush', 'candle']
-  },
-  {
-    theme: 'Music',
-    themeHe: 'מוזיקה',
-    criticalLure: 'music',
-    studyWords: [
-      'note', 'sound', 'piano', 'sing', 'radio',
-      'band', 'melody', 'horn', 'concert', 'instrument',
-      'symphony', 'jazz', 'orchestra', 'art', 'rhythm'
-    ],
-    relatedDistractors: ['tune', 'harmony', 'song', 'composer'],
-    unrelatedDistractors: ['rock', 'leaf', 'soap', 'nail']
+    relatedDistractors: ['קרחון', 'קפוא', 'צינה', 'הקפאה'],
+    unrelatedDistractors: []
   }
 ];
 
@@ -144,15 +96,15 @@ export function getAllStudyWords(): StudyTrial[] {
   return shuffleArray(allWords);
 }
 
-// Get test items (studied + critical lures + distractors)
+// Get test items (studied + critical lures + unrelated distractors)
 export function getTestItems(): TestItem[] {
   const testItems: TestItem[] = [];
 
   WORD_LISTS.forEach((list) => {
-    // Add 3 studied words from each list (randomly selected, preserving serial position)
-    const wordsWithPositions = list.studyWords.map((word, index) => ({ word, position: index + 1 }));
-    const studiedSample = shuffleArray(wordsWithPositions).slice(0, 3);
-    studiedSample.forEach(({ word, position }) => {
+    // Add 2 words from early positions (1-4)
+    const earlyWords = list.studyWords.slice(0, 4).map((word, index) => ({ word, position: index + 1 }));
+    const selectedEarly = shuffleArray(earlyWords).slice(0, 2);
+    selectedEarly.forEach(({ word, position }) => {
       testItems.push({
         word,
         itemType: 'studied',
@@ -161,29 +113,66 @@ export function getTestItems(): TestItem[] {
       });
     });
 
-    // Add critical lure
+    // Add 2 words from middle positions (5-8)
+    const middleWords = list.studyWords.slice(4, 8).map((word, index) => ({ word, position: index + 5 }));
+    const selectedMiddle = shuffleArray(middleWords).slice(0, 2);
+    selectedMiddle.forEach(({ word, position }) => {
+      testItems.push({
+        word,
+        itemType: 'studied',
+        listTheme: list.theme,
+        serialPosition: position
+      });
+    });
+
+    // Add 2 words from late positions (9-12)
+    const lateWords = list.studyWords.slice(8, 12).map((word, index) => ({ word, position: index + 9 }));
+    const selectedLate = shuffleArray(lateWords).slice(0, 2);
+    selectedLate.forEach(({ word, position }) => {
+      testItems.push({
+        word,
+        itemType: 'studied',
+        listTheme: list.theme,
+        serialPosition: position
+      });
+    });
+
+    // Add critical lure (the non-presented word)
     testItems.push({
       word: list.criticalLure,
       itemType: 'critical_lure',
       listTheme: list.theme
     });
-
-    // Add 1 related distractor
-    testItems.push({
-      word: list.relatedDistractors[0],
-      itemType: 'related_distractor',
-      listTheme: list.theme
-    });
-
-    // Add 1 unrelated distractor
-    testItems.push({
-      word: list.unrelatedDistractors[0],
-      itemType: 'unrelated_distractor',
-      listTheme: list.theme
-    });
   });
 
-  // Shuffle test items
+  // Add 7 unrelated distractors per list (42 total)
+  // These are words not in ANY list
+  const unrelatedWords = [
+    'כדור', 'עט', 'ספר', 'דלת', 'חלון',
+    'פרח', 'בקבוק', 'מברשת', 'נר', 'מראה',
+    'מגבת', 'מטבע', 'מקלדת', 'תמונה', 'מספריים',
+    'בלון', 'אבן', 'נייר', 'רוח', 'כביש',
+    'דשא', 'גלגל', 'תפוז', 'סבון', 'מסמר',
+    'עלה', 'סלע', 'ענן', 'דג', 'מנורה',
+    'מוזיקה', 'טלפון', 'חולצה', 'עץ', 'כובע',
+    'מגף', 'מחברת', 'עיפרון', 'שעון', 'מפתח',
+    'תיק', 'משקפיים'
+  ];
+
+  // Add 7 unrelated words per list (total 42)
+  const shuffledUnrelated = shuffleArray(unrelatedWords);
+  for (let i = 0; i < 6; i++) {
+    for (let j = 0; j < 7; j++) {
+      const word = shuffledUnrelated[i * 7 + j];
+      testItems.push({
+        word,
+        itemType: 'unrelated_distractor',
+        listTheme: WORD_LISTS[i].theme
+      });
+    }
+  }
+
+  // Shuffle all test items
   return shuffleArray(testItems);
 }
 

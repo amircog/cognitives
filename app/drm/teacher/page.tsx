@@ -77,7 +77,7 @@ export default function DRMTeacherDashboard() {
 
       // Calculate serial position curve (for studied items only)
       const serialPositionData: Array<{ position: number; recallRate: number; count: number }> = [];
-      for (let position = 1; position <= 15; position++) {
+      for (let position = 1; position <= 12; position++) {
         const itemsAtPosition = studiedItems.filter(
           (r: DRMResult) => r.serial_position === position
         );
@@ -246,7 +246,7 @@ export default function DRMTeacherDashboard() {
             <div className="bg-card border border-border rounded-xl p-6 mt-8">
               <h2 className="text-2xl font-bold mb-2">Serial Position Curve</h2>
               <p className="text-muted mb-6">
-                Recall rate by position in the original study list (1-15). Shows primacy (early items) and recency (late items) effects.
+                Recall rate by position in the original study list (1-12). Shows primacy (early items) and recency (late items) effects.
               </p>
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart

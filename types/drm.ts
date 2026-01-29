@@ -28,7 +28,7 @@ export interface TestResponse {
   isCorrect: boolean;
   reactionTimeMs: number;
   serialPosition?: number; // Position in original study list (1-15)
-  confidence?: 1 | 2 | 3 | 4 | 5; // Optional confidence rating
+  confidence?: 1 | 2 | 3 | 4; // Confidence rating (1 = not sure, 4 = very sure)
 }
 
 export interface DRMResult {

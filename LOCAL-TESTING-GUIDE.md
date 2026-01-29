@@ -41,25 +41,25 @@ This will start the Next.js development server, usually at `http://localhost:300
 3. Click "התחל ניסוי" (Start Experiment)
 
 #### C. Study Phase
-1. You'll see words presented one at a time
-2. There are now **150 words total** (10 lists × 15 words each)
+1. You'll see words presented one at a time in Hebrew
+2. There are now **72 words total** (6 lists × 12 words each)
 3. Each word appears for 2 seconds
-4. Progress bar shows your position (e.g., "45 / 150")
-5. **Expected duration: ~5 minutes**
-6. Wait for all words to complete (or you can refresh to skip for testing)
+4. **5-second break between lists** (shows countdown)
+5. Progress bar shows your position (e.g., "12 / 72")
+6. **Expected duration: ~3 minutes**
+7. Wait for all words to complete (or you can refresh to skip for testing)
 
 #### D. Test Phase
 1. After study completes, you'll see "המשך לבדיקה" (Continue to Test)
 2. Click it to go to the recognition test
-3. You'll see **60 test items** (10 lists × 6 items each):
-   - 30 studied words
-   - 10 critical lures (never presented!)
-   - 10 related distractors
-   - 10 unrelated distractors
-4. For each word, click either:
-   - "כן, ראיתי" (Yes, I saw it - OLD)
-   - "לא, לא ראיתי" (No, I didn't see it - NEW)
-5. Progress bar shows (e.g., "15 / 60")
+3. You'll see **84 test items** (6 lists × 14 items each):
+   - 36 studied words (6 per list: 2 early + 2 middle + 2 late positions)
+   - 6 critical lures (never presented!)
+   - 42 unrelated distractors (7 per list)
+4. For each word, you'll answer TWO questions:
+   - First: "כן, ראיתי" (Yes, I saw it - OLD) or "לא, לא ראיתי" (No, I didn't see it - NEW)
+   - Then: Confidence rating 1-4 (1 = not sure at all, 4 = very sure)
+5. Progress bar shows (e.g., "42 / 84")
 
 #### E. Completion
 1. After all 60 items, you'll see "!תודה" (Thank you!)
@@ -79,13 +79,16 @@ This will start the Next.js development server, usually at `http://localhost:300
 **Recognition Rates:**
 - **Hit Rate** (studied words): Should be high (~70-90%)
 - **Critical Lure Rate**: Should be surprisingly high! (~60-80%) - This is the false memory effect
-- **Related FA Rate**: Moderate (~30-50%)
 - **Unrelated FA Rate**: Low (~10-20%) - baseline false alarm rate
 
 **Serial Position Curve:**
 - **Primacy effect**: Positions 1-3 should have higher recall (people remember first items)
-- **Recency effect**: Positions 13-15 should have higher recall (people remember last items)
+- **Recency effect**: Positions 10-12 should have higher recall (people remember last items)
 - **Middle positions**: Lower recall (the "forgetting curve")
+
+**Confidence Ratings:**
+- People often have HIGH confidence in false memories (critical lures)
+- This is part of what makes the DRM effect so striking!
 
 ### 6. Mobile Testing
 
@@ -104,16 +107,17 @@ This will start the Next.js development server, usually at `http://localhost:300
 ### 7. Verify Data in Supabase
 
 1. Go to Supabase → Table Editor → `drm_results`
-2. You should see 60 rows per participant
+2. You should see 84 rows per participant
 3. Check that columns include:
-   - `session_id` (same for all 60 rows from one participant)
+   - `session_id` (same for all 84 rows from one participant)
    - `participant_name` (your test name)
-   - `word` (the word shown)
-   - `item_type` (studied, critical_lure, related_distractor, unrelated_distractor)
-   - `serial_position` (1-15 for studied items, null for others)
+   - `word` (the word shown in Hebrew)
+   - `item_type` (studied, critical_lure, unrelated_distractor)
+   - `serial_position` (1-12 for studied items, null for others)
    - `response` (old/new)
    - `is_correct` (true/false)
    - `reaction_time_ms`
+   - `confidence` (1-4)
 
 ### 8. Common Issues & Fixes
 

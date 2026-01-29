@@ -8,6 +8,7 @@ import { StudyTrial } from '@/types/drm';
 
 const WORD_DISPLAY_TIME = 2000; // 2 seconds per word
 const INTER_WORD_INTERVAL = 500; // 500ms blank between words
+const LIST_BREAK_TIME = 5000; // 5 seconds break between lists
 
 export default function DRMStudyPage() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function DRMStudyPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showWord, setShowWord] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [isBreak, setIsBreak] = useState(false);
+  const [breakCountdown, setBreakCountdown] = useState(5);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -39,7 +42,20 @@ export default function DRMStudyPage() {
   useEffect(() => {
     if (words.length === 0 || currentIndex >= words.length) return;
 
-    if (showWord) {
+    if (isBreak) {
+      // Handle list break countdown
+      if (breakCountdown > 0) {
+        timeoutRef.current = setTimeout(() => {
+          setBreakCountdown(breakCountdown - 1);
+        }, 1000);
+      } else {
+        // Break is over, continue with next word
+        setIsBreak(false);
+        setBreakCountdown(5);
+        setCurrentIndex(currentIndex + 1);
+        setShowWord(true);
+      }
+    } else if (showWord) {
       // Show current word for WORD_DISPLAY_TIME
       timeoutRef.current = setTimeout(() => {
         setShowWord(false);
@@ -51,8 +67,17 @@ export default function DRMStudyPage() {
         if (nextIndex >= words.length) {
           setIsComplete(true);
         } else {
-          setCurrentIndex(nextIndex);
-          setShowWord(true);
+          // Check if we completed a list (every 12 words)
+          const currentListIndex = Math.floor(currentIndex / 12);
+          const nextListIndex = Math.floor(nextIndex / 12);
+
+          if (currentListIndex !== nextListIndex && nextIndex < words.length) {
+            // Start a break between lists
+            setIsBreak(true);
+          } else {
+            setCurrentIndex(nextIndex);
+            setShowWord(true);
+          }
         }
       }, INTER_WORD_INTERVAL);
     }
@@ -62,7 +87,7 @@ export default function DRMStudyPage() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [showWord, currentIndex, words.length]);
+  }, [showWord, currentIndex, words.length, isBreak, breakCountdown]);
 
   const handleContinue = () => {
     router.push('/drm/test');
@@ -90,7 +115,22 @@ export default function DRMStudyPage() {
           {/* Word display */}
           <div className="min-h-[300px] flex items-center justify-center">
             <AnimatePresence mode="wait">
-              {showWord && words[currentIndex] && (
+              {isBreak ? (
+                <motion.div
+                  key="break"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="text-center"
+                >
+                  <p className="text-3xl font-bold text-purple-400 mb-4" dir="rtl">
+                    הפסקה קצרה
+                  </p>
+                  <p className="text-6xl font-bold text-purple-300">
+                    {breakCountdown}
+                  </p>
+                </motion.div>
+              ) : showWord && words[currentIndex] && (
                 <motion.div
                   key={currentIndex}
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -105,9 +145,11 @@ export default function DRMStudyPage() {
             </AnimatePresence>
           </div>
 
-          <p className="text-muted mt-8" dir="rtl">
-            נסה לזכור את המילים...
-          </p>
+          {!isBreak && (
+            <p className="text-muted mt-8" dir="rtl">
+              נסה לזכור את המילים...
+            </p>
+          )}
         </div>
       ) : (
         <motion.div

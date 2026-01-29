@@ -12,8 +12,8 @@ CREATE TABLE drm_results (
   response text NOT NULL CHECK (response IN ('old', 'new')),
   is_correct boolean NOT NULL,
   reaction_time_ms float8 NOT NULL,
-  serial_position integer CHECK (serial_position >= 1 AND serial_position <= 15),
-  confidence integer CHECK (confidence >= 1 AND confidence <= 5),
+  serial_position integer CHECK (serial_position >= 1 AND serial_position <= 12),
+  confidence integer CHECK (confidence >= 1 AND confidence <= 4),
   created_at timestamptz DEFAULT now()
 );
 
