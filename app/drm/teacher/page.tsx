@@ -274,7 +274,7 @@ export default function DRMTeacherDashboard() {
                     }}
                     labelStyle={{ color: '#fafafa' }}
                     itemStyle={{ color: '#fafafa' }}
-                    formatter={(value: any, name: string) => {
+                    formatter={(value: any, name: any) => {
                       if (name === 'recallRate' && typeof value === 'number') {
                         return [`${value.toFixed(1)}%`, 'Recall Rate'];
                       }
