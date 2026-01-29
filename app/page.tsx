@@ -17,7 +17,15 @@ export default function HomePage() {
       color: 'emerald',
       available: true,
     },
-    // Future experiments can be added here
+    {
+      id: 'drm',
+      title: 'False Memory (DRM)',
+      description: 'Experience how memory can create false recollections',
+      descriptionHe: 'חוו איך הזיכרון יוצר זיכרונות שווא',
+      icon: Beaker,
+      color: 'purple',
+      available: true,
+    },
   ];
 
   return (
@@ -57,7 +65,8 @@ export default function HomePage() {
               `}
             >
               <div className="flex items-center justify-center mb-4">
-                <experiment.icon className="w-16 h-16 text-emerald-400" />
+                {experiment.id === 'stroop' && <experiment.icon className="w-16 h-16 text-emerald-400" />}
+                {experiment.id === 'drm' && <experiment.icon className="w-16 h-16 text-purple-400" />}
               </div>
 
               <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
