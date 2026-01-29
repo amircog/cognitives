@@ -52,12 +52,12 @@ export default function HomePage() {
               }}
               className={`
                 bg-card border border-border rounded-xl p-8 cursor-pointer
-                transition-all hover:border-${experiment.color}-400/50
+                transition-all hover:border-emerald-400/50
                 ${!experiment.available ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
-              <div className={`flex items-center justify-center mb-4`}>
-                <experiment.icon className={`w-16 h-16 text-${experiment.color}-400`} />
+              <div className="flex items-center justify-center mb-4">
+                <experiment.icon className="w-16 h-16 text-emerald-400" />
               </div>
 
               <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
