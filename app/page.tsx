@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, FlaskConical, Shapes } from 'lucide-react';
+import { Beaker, Brain, BrainCog, FlaskConical, Shapes } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
@@ -35,6 +35,15 @@ export default function HomePage() {
       color: 'indigo',
       available: true,
     },
+    {
+      id: 'mentalRep',
+      title: 'Mental Representation',
+      description: 'Explore mental scanning and mental rotation',
+      descriptionHe: 'חקרו סריקה מנטלית וסיבוב מנטלי',
+      icon: BrainCog,
+      color: 'cyan',
+      available: true,
+    },
   ];
 
   return (
@@ -56,7 +65,7 @@ export default function HomePage() {
           ניסויי כיתה • Cognitive Processes Course Experiments
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {experiments.map((experiment) => (
             <motion.div
               key={experiment.id}
@@ -77,6 +86,7 @@ export default function HomePage() {
                 {experiment.id === 'stroop' && <experiment.icon className="w-16 h-16 text-emerald-400" />}
                 {experiment.id === 'drm' && <experiment.icon className="w-16 h-16 text-purple-400" />}
                 {experiment.id === 'bouba-kiki' && <experiment.icon className="w-16 h-16 text-indigo-400" />}
+                {experiment.id === 'mentalRep' && <experiment.icon className="w-16 h-16 text-cyan-400" />}
               </div>
 
               <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
