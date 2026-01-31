@@ -12,7 +12,7 @@ interface ShapeDisplayProps {
 }
 
 // Define rounded shapes (smooth, curved, blob-like)
-const ROUNDED_SHAPES: Record<string, JSX.Element> = {
+const ROUNDED_SHAPES: Record<string, React.ReactElement> = {
   'rounded_01.png': (
     <ellipse cx="100" cy="100" rx="80" ry="60" fill="currentColor" />
   ),
@@ -43,7 +43,7 @@ const ROUNDED_SHAPES: Record<string, JSX.Element> = {
 };
 
 // Define spiky shapes (angular, sharp, jagged)
-const SPIKY_SHAPES: Record<string, JSX.Element> = {
+const SPIKY_SHAPES: Record<string, React.ReactElement> = {
   'spiky_01.png': (
     <polygon
       points="100,20 130,80 190,80 140,120 160,180 100,140 40,180 60,120 10,80 70,80"
