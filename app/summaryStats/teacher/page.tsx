@@ -193,7 +193,7 @@ export default function TeacherPage() {
                   <YAxis domain={[0, 100]}
                     label={{ value: t.accAxis, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
                   />
-                  <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                  <Tooltip formatter={(v) => v !== undefined ? `${Number(v).toFixed(1)}%` : ''} />
                   <ReferenceLine y={50} stroke="#9ca3af" strokeDasharray="6 3"
                     label={{ value: t.chanceLabel, position: 'right', style: { fontSize: 10, fill: '#9ca3af' } }}
                   />
