@@ -32,6 +32,7 @@ function ResultsContent() {
       try {
         if (sessionId) {
           const supabase = getSupabase();
+          if (!supabase) throw new Error('Supabase not available');
           const { data } = await supabase
             .from('summary_stats_results')
             .select('*')

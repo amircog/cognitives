@@ -80,6 +80,7 @@ export default function RecognitionPage() {
 
       try {
         const supabase = getSupabase();
+        if (!supabase) throw new Error('Supabase not available');
         await supabase.from('summary_stats_results').insert(
           newResults.map(r => ({
             session_id: r.session_id,

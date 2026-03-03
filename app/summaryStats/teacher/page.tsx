@@ -29,6 +29,7 @@ export default function TeacherPage() {
     setRefreshing(true);
     try {
       const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase not available');
       const { data } = await supabase
         .from('summary_stats_results')
         .select('*')
@@ -61,6 +62,7 @@ export default function TeacherPage() {
   const handleDownloadCSV = async () => {
     try {
       const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase not available');
       const { data } = await supabase
         .from('summary_stats_results')
         .select('*')
