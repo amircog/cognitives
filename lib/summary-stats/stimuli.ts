@@ -58,9 +58,9 @@ export const STAT_LABELS: Record<StimulusType, Record<StatType, { en: string; he
     min:  { en: 'What was the shortest line?',        he: 'מהו הקו הקצר ביותר?' },
   },
   'line-orientations': {
-    mean: { en: 'What was the average line tilt?',          he: 'מהי הנטייה הממוצעת של הקווים?' },
-    max:  { en: 'What was the most rightward (CW) tilt?',   he: 'מהי הנטייה הימנית ביותר?' },
-    min:  { en: 'What was the most leftward (CCW) tilt?',   he: 'מהי הנטייה השמאלית ביותר?' },
+    mean: { en: 'What was the average line tilt?',          he: 'מהו הסיבוב הממוצע של הקווים?' },
+    max:  { en: 'What was the most rightward (CW) tilt?',   he: 'מהו הסיבוב הימני ביותר?' },
+    min:  { en: 'What was the most leftward (CCW) tilt?',   he: 'מהו הסיבוב השמאלי ביותר?' },
   },
 };
 
@@ -77,7 +77,7 @@ export const TWO_AFC_LABELS: Record<StimulusType, Record<StatType, { en: string;
     min:  { en: 'Which line was the shortest?',             he: 'איזה קו היה הקצר ביותר?' },
   },
   'line-orientations': {
-    mean: { en: 'Which tilt matches the average tilt?',     he: 'איזה קו תואם את הנטייה הממוצעת?' },
+    mean: { en: 'Which tilt matches the average tilt?',     he: 'איזה קו תואם את הסיבוב הממוצע?' },
     max:  { en: 'Which was the most rightward (CW) tilt?',  he: 'איזה קו נטה הכי ימינה?' },
     min:  { en: 'Which was the most leftward (CCW) tilt?',  he: 'איזה קו נטה הכי שמאלה?' },
   },

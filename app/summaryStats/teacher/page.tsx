@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ReferenceLine, ErrorBar,
-  ScatterChart, Scatter, ZAxis, Cell,
+  ScatterChart, Scatter, ZAxis, Cell, Customized,
 } from 'recharts';
 import { BarChart2, Download, Home, RefreshCw } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -22,6 +22,28 @@ import { TrialResult } from '@/types/summary-stats';
 const CustomDot = (props: { cx?: number; cy?: number; payload?: ScatterPoint }) => {
   const { cx = 0, cy = 0 } = props;
   return <circle cx={cx} cy={cy} r={6} fill="#f97316" stroke="#fff" strokeWidth={1.5} opacity={0.85} />;
+};
+
+// Draws a dashed diagonal from (x1,y1) to (x2,y2) in data coordinates,
+// using recharts' internal scale functions so it works with any axis domain.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DiagonalLine = (props: any) => {
+  const { xAxisMap, yAxisMap, x1, y1, x2, y2 } = props as {
+    xAxisMap: Record<string, { scale: (v: number) => number }>;
+    yAxisMap: Record<string, { scale: (v: number) => number }>;
+    x1: number; y1: number; x2: number; y2: number;
+  };
+  if (!xAxisMap || !yAxisMap) return null;
+  const xs = Object.values(xAxisMap)[0]?.scale;
+  const ys = Object.values(yAxisMap)[0]?.scale;
+  if (!xs || !ys) return null;
+  return (
+    <line
+      x1={xs(x1)} y1={ys(y1)}
+      x2={xs(x2)} y2={ys(y2)}
+      stroke="#9ca3af" strokeDasharray="6 4" strokeWidth={1.5} strokeLinecap="round"
+    />
+  );
 };
 
 export default function TeacherPage() {
@@ -88,6 +110,11 @@ export default function TeacherPage() {
   const aggData    = computeAggChartData(participants, language, TYPE_LABELS);
   const scatter4a  = scatterEnsembleVs2AFC(participants);
   const scatter4b  = scatter2AFCVsRecognition(participants);
+
+  // X-axis upper bound for scatter 4a (ensemble error), used to draw the corner-to-corner diagonal
+  const scatter4aXMax = scatter4a.length > 0
+    ? Math.max(...scatter4a.map(p => p.x)) * 1.25
+    : 60;
 
   const t = language === 'he' ? {
     title:         'לוח בקרה — תפיסת אנסמבל',
@@ -238,6 +265,8 @@ export default function TeacherPage() {
                       />
                       <ZAxis range={[60, 60]} />
                       <Tooltip content={<ScatterTooltip />} />
+                      {/* Negative diagonal: high error → low accuracy (expected relationship) */}
+                      <Customized component={DiagonalLine} x1={0} y1={100} x2={scatter4aXMax} y2={0} />
                       <Scatter data={scatter4a} shape={<CustomDot />}>
                         {scatter4a.map((_, i) => <Cell key={i} fill="#f97316" />)}
                       </Scatter>
@@ -269,6 +298,8 @@ export default function TeacherPage() {
                       />
                       <ZAxis range={[60, 60]} />
                       <Tooltip content={<ScatterTooltip />} />
+                      {/* Identity line y=x: both axes are 0–100%, so this is the true diagonal */}
+                      <Customized component={DiagonalLine} x1={0} y1={0} x2={100} y2={100} />
                       <Scatter data={scatter4b} shape={<CustomDot />}>
                         {scatter4b.map((_, i) => <Cell key={i} fill="#fbbf24" />)}
                       </Scatter>
