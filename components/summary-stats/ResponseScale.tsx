@@ -68,22 +68,26 @@ export default function ResponseScale({
         />
       </div>
 
-      {/* Slider */}
+      {/* Slider – stable gray track, orange thumb, always LTR so direction doesn't flip gradient */}
       <div className="w-full max-w-md px-4">
-        <div className="flex justify-between text-xs text-gray-400 mb-1">
+        <style>{`
+          .ss-slider::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#f97316;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+          .ss-slider::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#f97316;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+          .ss-slider::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:#374151;}
+          .ss-slider::-moz-range-track{height:12px;border-radius:6px;background:#374151;}
+        `}</style>
+        <div className="flex justify-between text-xs text-gray-400 mb-1" style={{ direction: 'ltr' }}>
           <span>{unitLabels[stimulusType].low}</span>
           <span>{unitLabels[stimulusType].high}</span>
         </div>
         <input
           type="range"
-          min={sliderMin}
-          max={sliderMax}
+          min={0}
+          max={100}
           value={sliderPos}
           onChange={e => setSliderPos(Number(e.target.value))}
-          className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-          style={{
-            background: `linear-gradient(to right, #f97316 ${sliderPos}%, #374151 ${sliderPos}%)`,
-          }}
+          className="ss-slider w-full appearance-none cursor-pointer"
+          style={{ direction: 'ltr', height: '12px', borderRadius: '6px', background: '#374151' }}
         />
       </div>
 

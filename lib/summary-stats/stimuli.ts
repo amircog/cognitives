@@ -3,15 +3,15 @@
 
 import {
   StimulusType, StatType, ArrayItem,
-  EnsembleTrial, RecognitionTrial, SeenArray,
+  EnsembleTrial, RecognitionTrial, TwoAFCTrial,
 } from '@/types/summary-stats';
 
 // ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
 
-export const DISPLAY_DURATION_MS = 400;   // Brief – prevents item counting
-export const BLANK_DURATION_MS   = 200;
+export const DISPLAY_DURATION_MS  = 400;  // Brief – prevents item counting
+export const BLANK_DURATION_MS    = 200;
 export const FIXATION_DURATION_MS = 500;
 
 export const SET_SIZES = [4, 8, 12];
@@ -26,13 +26,12 @@ export const VALUE_RANGES: Record<StimulusType, { min: number; max: number }> = 
 // SVG display area
 const SVG_W = 500;
 const SVG_H = 500;
-const MARGIN = 60; // keep items away from edges
+const MARGIN = 60;
 
 // ──────────────────────────────────────────────
 // Slider ↔ value mapping
 // ──────────────────────────────────────────────
 
-// Slider is always 0-100 (integer); maps to physical value
 export function sliderToValue(slider: number, type: StimulusType): number {
   const { min, max } = VALUE_RANGES[type];
   return min + (slider / 100) * (max - min);
@@ -44,32 +43,50 @@ export function valueToSlider(value: number, type: StimulusType): number {
 }
 
 // ──────────────────────────────────────────────
-// Bilingual stat-type labels
+// Bilingual stat-type labels (improved Hebrew)
 // ──────────────────────────────────────────────
 
 export const STAT_LABELS: Record<StimulusType, Record<StatType, { en: string; he: string }>> = {
   'circles': {
-    mean: { en: 'What was the average circle size?',   he: 'מה הייתה גודל העיגול הממוצע?' },
-    max:  { en: 'What was the largest circle size?',   he: 'מה הייתה גודל העיגול הגדול ביותר?' },
-    min:  { en: 'What was the smallest circle size?',  he: 'מה הייתה גודל העיגול הקטן ביותר?' },
+    mean: { en: 'What was the average circle size?',  he: 'מהו גודל העיגול הממוצע?' },
+    max:  { en: 'What was the largest circle size?',  he: 'מהו גודל העיגול הגדול ביותר?' },
+    min:  { en: 'What was the smallest circle size?', he: 'מהו גודל העיגול הקטן ביותר?' },
   },
   'line-lengths': {
-    mean: { en: 'What was the average line length?',   he: 'מה הייתה אורך הקו הממוצע?' },
-    max:  { en: 'What was the longest line?',          he: 'מה הייתה הקו הארוך ביותר?' },
-    min:  { en: 'What was the shortest line?',         he: 'מה הייתה הקו הקצר ביותר?' },
+    mean: { en: 'What was the average line length?',  he: 'מהו אורך הקו הממוצע?' },
+    max:  { en: 'What was the longest line?',         he: 'מהו הקו הארוך ביותר?' },
+    min:  { en: 'What was the shortest line?',        he: 'מהו הקו הקצר ביותר?' },
   },
   'line-orientations': {
-    mean: { en: 'What was the average line tilt?',         he: 'מה הייתה הנטייה הממוצעת של הקווים?' },
-    max:  { en: 'What was the most clockwise tilt?',        he: 'מה הייתה הנטייה השעונית ביותר?' },
-    min:  { en: 'What was the most counter-clockwise tilt?', he: 'מה הייתה הנטייה הנגד-שעונית ביותר?' },
+    mean: { en: 'What was the average line tilt?',          he: 'מהי הנטייה הממוצעת של הקווים?' },
+    max:  { en: 'What was the most rightward (CW) tilt?',   he: 'מהי הנטייה הימנית ביותר?' },
+    min:  { en: 'What was the most leftward (CCW) tilt?',   he: 'מהי הנטייה השמאלית ביותר?' },
   },
 };
 
-// Stimulus type labels
+// 2AFC question labels (after seeing an array, pick which option is the stat)
+export const TWO_AFC_LABELS: Record<StimulusType, Record<StatType, { en: string; he: string }>> = {
+  'circles': {
+    mean: { en: 'Which circle matches the average size?',   he: 'איזה עיגול תואם את הגודל הממוצע?' },
+    max:  { en: 'Which circle was the largest?',            he: 'איזה עיגול היה הגדול ביותר?' },
+    min:  { en: 'Which circle was the smallest?',           he: 'איזה עיגול היה הקטן ביותר?' },
+  },
+  'line-lengths': {
+    mean: { en: 'Which line matches the average length?',   he: 'איזה קו תואם את האורך הממוצע?' },
+    max:  { en: 'Which line was the longest?',              he: 'איזה קו היה הארוך ביותר?' },
+    min:  { en: 'Which line was the shortest?',             he: 'איזה קו היה הקצר ביותר?' },
+  },
+  'line-orientations': {
+    mean: { en: 'Which tilt matches the average tilt?',     he: 'איזה קו תואם את הנטייה הממוצעת?' },
+    max:  { en: 'Which was the most rightward (CW) tilt?',  he: 'איזה קו נטה הכי ימינה?' },
+    min:  { en: 'Which was the most leftward (CCW) tilt?',  he: 'איזה קו נטה הכי שמאלה?' },
+  },
+};
+
 export const TYPE_LABELS: Record<StimulusType, { en: string; he: string }> = {
   'circles':           { en: 'Circles',      he: 'עיגולים' },
-  'line-lengths':      { en: 'Lines',         he: 'קווים' },
-  'line-orientations': { en: 'Orientations',  he: 'כיוונים' },
+  'line-lengths':      { en: 'Lines',        he: 'קווים' },
+  'line-orientations': { en: 'Orientations', he: 'כיוונים' },
 };
 
 export const STAT_SHORT: Record<StatType, { en: string; he: string }> = {
@@ -95,9 +112,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// Generate non-overlapping scatter positions within a grid with jitter
 function generatePositions(n: number): { x: number; y: number }[] {
-  // Place items in a grid, then jitter
   const cols = Math.ceil(Math.sqrt(n * 1.5));
   const rows = Math.ceil(n / cols);
   const cellW = (SVG_W - 2 * MARGIN) / cols;
@@ -126,19 +141,35 @@ export function generateArray(type: StimulusType, n: number): ArrayItem[] {
   }));
 }
 
-// ──────────────────────────────────────────────
-// True-value calculation
-// ──────────────────────────────────────────────
-
 export function calcTrueValue(items: ArrayItem[], statType: StatType): number {
   const values = items.map(it => it.value);
-  if (statType === 'mean') return values.reduce((a, b) => a + b, 0) / values.length;
+  if (statType === 'mean') return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
   if (statType === 'max')  return Math.max(...values);
   return Math.min(...values);
 }
 
+// Generate a 2AFC foil: plausibly different from the true value (20–50% of range away)
+export function generate2AFCFoil(trueValue: number, type: StimulusType): number {
+  const { min, max } = VALUE_RANGES[type];
+  const range = max - min;
+  const minDiff = range * 0.20;
+  const maxDiff = range * 0.48;
+
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  const diff = minDiff + Math.random() * (maxDiff - minDiff);
+  let foil = Math.round(trueValue + direction * diff);
+
+  foil = Math.max(min, Math.min(max, foil));
+  // If we got clamped and the result is too close, try other direction
+  if (Math.abs(foil - trueValue) < minDiff) {
+    foil = Math.round(trueValue - direction * diff);
+    foil = Math.max(min, Math.min(max, foil));
+  }
+  return foil;
+}
+
 // ──────────────────────────────────────────────
-// Practice trial generation (6 trials: 2 per type)
+// Practice trial generation (6 trials: 2 per type, ensemble only, with feedback)
 // ──────────────────────────────────────────────
 
 export function generatePracticeTrials(): EnsembleTrial[] {
@@ -152,11 +183,11 @@ export function generatePracticeTrials(): EnsembleTrial[] {
   ];
 
   return shuffle(configs).map((cfg, i) => {
-    const n = 8; // fixed size for practice
+    const n = 8;
     const items = generateArray(cfg.type, n);
     return {
       trialId: i + 1,
-      type: 'ensemble',
+      type: 'ensemble' as const,
       stimulusType: cfg.type,
       statType: cfg.stat,
       items,
@@ -168,30 +199,33 @@ export function generatePracticeTrials(): EnsembleTrial[] {
 }
 
 // ──────────────────────────────────────────────
-// Main ensemble trial generation (18 trials)
-// 6 per stimulus type: 2×mean + 2×max + 2×min
-// Set sizes balanced across {4, 8, 12}
+// Main interleaved trial generation
+// 9 ensemble + 9 recognition + 6 2AFC = 24 trials
+// Each trial shows its own array immediately before the question
 // ──────────────────────────────────────────────
 
-export function generateEnsembleTrials(): EnsembleTrial[] {
-  const types: StimulusType[] = ['circles', 'line-lengths', 'line-orientations'];
-  const stats: StatType[] = ['mean', 'mean', 'max', 'max', 'min', 'min'];
+export function generateMainTrials(): (EnsembleTrial | RecognitionTrial | TwoAFCTrial)[] {
+  const TYPES: StimulusType[] = ['circles', 'line-lengths', 'line-orientations'];
+  const STATS: StatType[] = ['mean', 'max', 'min'];
 
-  // 18 set-size slots balanced: 6 of each size
-  const setSizePool = shuffle([...SET_SIZES, ...SET_SIZES, ...SET_SIZES,
-                                ...SET_SIZES, ...SET_SIZES, ...SET_SIZES]);
-
-  const allTrials: EnsembleTrial[] = [];
-  let idCounter = 1;
+  // Set size pool: 24 total, each size appears 8 times
+  const setSizePool = shuffle([
+    ...SET_SIZES, ...SET_SIZES, ...SET_SIZES,
+    ...SET_SIZES, ...SET_SIZES, ...SET_SIZES,
+    ...SET_SIZES, ...SET_SIZES,
+  ]);
   let sizeIdx = 0;
+  const nextSize = () => setSizePool[sizeIdx++ % setSizePool.length];
 
-  for (const type of types) {
-    const shuffledStats = shuffle([...stats]);
-    for (const stat of shuffledStats) {
-      const n = setSizePool[sizeIdx++ % setSizePool.length];
+  // ── 9 Ensemble trials: 3 per type (one of each stat), balanced set sizes ──
+  const ensembleTrials: EnsembleTrial[] = [];
+  let eid = 1;
+  for (const type of TYPES) {
+    for (const stat of shuffle([...STATS])) {
+      const n = nextSize();
       const items = generateArray(type, n);
-      allTrials.push({
-        trialId: idCounter++,
+      ensembleTrials.push({
+        trialId: eid++,
         type: 'ensemble',
         stimulusType: type,
         statType: stat,
@@ -203,76 +237,87 @@ export function generateEnsembleTrials(): EnsembleTrial[] {
     }
   }
 
-  return shuffle(allTrials);
-}
+  // ── 9 Recognition trials: 3 per type (within-trial probe, ~50% targets) ──
+  const recTrials: RecognitionTrial[] = [];
+  let rid = 100;
+  for (const type of TYPES) {
+    // Use [true, true, false] so 2 targets + 1 foil per type = 18/9 hit rate controlled
+    const isTargetFlags = shuffle([true, true, false]);
+    for (let i = 0; i < 3; i++) {
+      const n = nextSize();
+      const items = generateArray(type, n);
+      const isTarget = isTargetFlags[i];
+      const { min, max } = VALUE_RANGES[type];
+      let probeValue: number;
 
-// ──────────────────────────────────────────────
-// Recognition probe generation (12 probes)
-// 4 per type: 2 targets from seen arrays + 2 foils
-// ──────────────────────────────────────────────
-
-export function generateRecognitionTrials(seenArrays: SeenArray[]): RecognitionTrial[] {
-  const types: StimulusType[] = ['circles', 'line-lengths', 'line-orientations'];
-  const probes: RecognitionTrial[] = [];
-  let idCounter = 1;
-
-  for (const type of types) {
-    const relevant = seenArrays.filter(a => a.stimulusType === type);
-    if (relevant.length === 0) continue;
-
-    // Collect all seen values for this type
-    const allSeenValues: { value: number; trialId: number }[] = [];
-    relevant.forEach(arr => {
-      arr.items.forEach(item => allSeenValues.push({ value: item.value, trialId: arr.trialId }));
-    });
-
-    const { min, max } = VALUE_RANGES[type];
-
-    // Pick 2 target items (actual values from seen arrays)
-    const shuffledSeen = shuffle(allSeenValues);
-    const targetItems = shuffledSeen.slice(0, 2);
-
-    // Generate 2 foils: within range but not matching any seen value
-    const seenValueSet = new Set(allSeenValues.map(v => v.value));
-    const foils: number[] = [];
-    let attempts = 0;
-    while (foils.length < 2 && attempts < 1000) {
-      const candidate = Math.round(randFloat(min, max));
-      // Must not match any seen value (allow ±2 tolerance for continuous values)
-      const isTooClose = allSeenValues.some(sv => Math.abs(sv.value - candidate) <= 2);
-      if (!isTooClose && !foils.includes(candidate)) {
-        foils.push(candidate);
+      if (isTarget) {
+        // Pick a random item from the array
+        probeValue = items[Math.floor(Math.random() * items.length)].value;
+      } else {
+        // Generate a foil not in the array
+        const seenSet = new Set(items.map(it => it.value));
+        let attempts = 0;
+        do {
+          probeValue = Math.round(randFloat(min, max));
+          attempts++;
+        } while (seenSet.has(probeValue) && attempts < 500);
       }
-      attempts++;
-    }
-    // Fallback if foil generation fails
-    while (foils.length < 2) {
-      foils.push(Math.round(randFloat(min, max)));
-    }
 
-    // Add target probes
-    for (const target of targetItems) {
-      probes.push({
-        trialId: idCounter++,
+      recTrials.push({
+        trialId: rid++,
         type: 'recognition',
         stimulusType: type,
-        probeValue: target.value,
-        probeIsTarget: true,
-        sourceTrialId: target.trialId,
-      });
-    }
-
-    // Add foil probes
-    for (const foilVal of foils) {
-      probes.push({
-        trialId: idCounter++,
-        type: 'recognition',
-        stimulusType: type,
-        probeValue: foilVal,
-        probeIsTarget: false,
+        items,
+        nItems: n,
+        probeValue,
+        probeIsTarget: isTarget,
       });
     }
   }
 
-  return shuffle(probes);
+  // ── 6 2AFC trials: 2 per type (mean + one of max/min, randomised) ──
+  const twoAFCTrials: TwoAFCTrial[] = [];
+  let fid = 200;
+  for (const type of TYPES) {
+    const stats2afc: StatType[] = shuffle(['mean', Math.random() < 0.5 ? 'max' : 'min'] as StatType[]);
+    for (const stat of stats2afc) {
+      const n = nextSize();
+      const items = generateArray(type, n);
+      const trueValue = calcTrueValue(items, stat);
+      const foilValue = generate2AFCFoil(trueValue, type);
+      twoAFCTrials.push({
+        trialId: fid++,
+        type: '2afc',
+        stimulusType: type,
+        statType: stat,
+        items,
+        nItems: n,
+        trueValue,
+        foilValue,
+        correctIsA: Math.random() < 0.5,
+      });
+    }
+  }
+
+  // ── Interleave: build blocks so no type dominates a stretch ──
+  // Pattern: E R F E R F E R E R F E R F E R E R E R F E R F  (9E 9R 6F)
+  // Simple approach: create 6 "mini-blocks" of (E, R, F) and 3 "pairs" of (E, R)
+  const eShuf = shuffle(ensembleTrials);
+  const rShuf = shuffle(recTrials);
+  const fShuf = shuffle(twoAFCTrials);
+
+  const interleaved: (EnsembleTrial | RecognitionTrial | TwoAFCTrial)[] = [];
+  // 6 blocks of (E, R, F)
+  for (let i = 0; i < 6; i++) {
+    interleaved.push(eShuf[i]);
+    interleaved.push(rShuf[i]);
+    interleaved.push(fShuf[i]);
+  }
+  // Remaining 3E + 3R
+  for (let i = 6; i < 9; i++) {
+    interleaved.push(eShuf[i]);
+    interleaved.push(rShuf[i]);
+  }
+
+  return interleaved; // 6×3 + 3×2 = 24 trials in nice ERF-ERF-... pattern
 }

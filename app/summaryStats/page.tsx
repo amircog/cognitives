@@ -127,7 +127,7 @@ export default function SummaryStatsIntro() {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={t.namePlaceholder}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-gray-900 placeholder-gray-400 bg-white"
               onKeyDown={e => e.key === 'Enter' && handleStart()}
             />
           </div>
