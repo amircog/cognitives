@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
+
+const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
+
+async function sha256(str: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 import { motion } from 'framer-motion';
 import { GraduationCap, RefreshCw, BarChart3 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +39,27 @@ export default function DRMTeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<AggregateStats | null>(null);
+
+  // ── Password gate ──────────────────────────────────────────────────────────
+  const [authed, setAuthed]   = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
+  }, []);
+
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    const hash = await sha256(pwInput);
+    if (hash === PW_HASH) {
+      sessionStorage.setItem('ss_teacher_authed', '1');
+      setAuthed(true);
+    } else {
+      setPwError(true);
+      setPwInput('');
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -111,8 +139,37 @@ export default function DRMTeacherDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (authed) fetchData();
+  }, [authed]);
+
+  if (!authed) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-card border border-border rounded-xl p-10 w-full max-w-sm flex flex-col items-center gap-6"
+        >
+          <GraduationCap className="w-10 h-10 text-purple-400" />
+          <h1 className="text-xl font-bold">Teacher Dashboard</h1>
+          <form onSubmit={handleLogin} className="w-full flex flex-col gap-3">
+            <input
+              type="password"
+              value={pwInput}
+              onChange={e => { setPwInput(e.target.value); setPwError(false); }}
+              placeholder="Password"
+              autoFocus
+              className={`w-full px-4 py-3 rounded-lg border bg-zinc-800 text-white outline-none transition-colors
+                ${pwError ? 'border-red-500' : 'border-border focus:border-purple-400'}`}
+            />
+            {pwError && <p className="text-red-400 text-sm text-center">Incorrect password</p>}
+            <button type="submit"
+              className="w-full py-3 bg-purple-400 hover:bg-purple-300 text-zinc-900 font-bold rounded-lg transition-colors">
+              Enter
+            </button>
+          </form>
+        </motion.div>
+      </main>
+    );
+  }
 
   if (loading) {
     return (

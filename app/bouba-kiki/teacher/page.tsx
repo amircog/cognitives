@@ -1,7 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+
+const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
+
+async function sha256(str: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 import { motion } from 'framer-motion';
 import { Shapes, Download, Users, ChevronLeft } from 'lucide-react';
 import {
@@ -37,11 +44,32 @@ export default function BoubaKikiTeacher() {
   const [participants, setParticipants] = useState<ParticipantSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ── Password gate ──────────────────────────────────────────────────────────
+  const [authed, setAuthed]   = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState(false);
+
   useEffect(() => {
     const storedLanguage = sessionStorage.getItem('bouba_kiki_language') as 'en' | 'he' | null;
     setLanguage(storedLanguage || 'en');
-    loadAllResults();
+    if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
   }, []);
+
+  useEffect(() => {
+    if (authed) loadAllResults();
+  }, [authed]);
+
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    const hash = await sha256(pwInput);
+    if (hash === PW_HASH) {
+      sessionStorage.setItem('ss_teacher_authed', '1');
+      setAuthed(true);
+    } else {
+      setPwError(true);
+      setPwInput('');
+    }
+  };
 
   const loadAllResults = async () => {
     const supabase = getSupabase();
@@ -144,6 +172,38 @@ export default function BoubaKikiTeacher() {
     a.download = `bouba-kiki-class-results.csv`;
     a.click();
   };
+
+  if (!authed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-xl shadow-xl p-10 w-full max-w-sm flex flex-col items-center gap-6"
+        >
+          <Shapes className="w-10 h-10 text-indigo-600" />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900">Teacher Dashboard</h1>
+            <p className="text-gray-500 text-sm mt-1">Bouba-Kiki Effect</p>
+          </div>
+          <form onSubmit={handleLogin} className="w-full flex flex-col gap-3">
+            <input
+              type="password"
+              value={pwInput}
+              onChange={e => { setPwInput(e.target.value); setPwError(false); }}
+              placeholder="Password"
+              autoFocus
+              className={`w-full px-4 py-3 rounded-lg border text-gray-900 outline-none transition-colors
+                ${pwError ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-indigo-500'}`}
+            />
+            {pwError && <p className="text-red-500 text-sm text-center">Incorrect password</p>}
+            <button type="submit"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors">
+              Enter
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
