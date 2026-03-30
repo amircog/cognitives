@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes } from 'lucide-react';
+import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search } from 'lucide-react';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 
@@ -114,6 +114,24 @@ export default function HomePage() {
       color: 'orange',
       available: true,
     },
+    {
+      id: 'posnerCueing',
+      title: 'Spatial Cueing',
+      description: 'Explore covert attention and the cueing effect',
+      descriptionHe: 'חקרו קשב סמוי ואפקט ההכוונה של פוזנר',
+      icon: Target,
+      color: 'amber',
+      available: true,
+    },
+    {
+      id: 'visualSearch',
+      title: 'Visual Search',
+      description: 'Feature vs conjunction search and the pop-out effect',
+      descriptionHe: 'חיפוש תכונה לעומת צירוף ואפקט הבולטות',
+      icon: Search,
+      color: 'rose',
+      available: true,
+    },
   ];
 
   return (
@@ -135,7 +153,7 @@ export default function HomePage() {
           ניסויי כיתה • Cognitive Processes Course Experiments
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {experiments.map((experiment) => (
             <motion.div
               key={experiment.id}
@@ -158,6 +176,8 @@ export default function HomePage() {
                 {experiment.id === 'bouba-kiki' && <experiment.icon className="w-16 h-16 text-indigo-400" />}
                 {experiment.id === 'mentalRep' && <experiment.icon className="w-16 h-16 text-cyan-400" />}
                 {experiment.id === 'summaryStats' && <experiment.icon className="w-16 h-16 text-orange-400" />}
+                {experiment.id === 'posnerCueing' && <experiment.icon className="w-16 h-16 text-amber-400" />}
+                {experiment.id === 'visualSearch' && <experiment.icon className="w-16 h-16 text-rose-400" />}
               </div>
 
               <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
