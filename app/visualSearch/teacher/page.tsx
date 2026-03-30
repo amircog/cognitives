@@ -261,7 +261,7 @@ export default function VisualSearchTeacherPage() {
                   />
                   <Tooltip
                     contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                    formatter={(v: number) => v != null ? [`${Math.round(v)}ms`] : ['N/A']}
+                    formatter={(v: any) => v != null ? [`${Math.round(v)}ms`] : ['N/A']}
                   />
                   <Legend wrapperStyle={{ color: '#a1a1aa', paddingTop: 8 }} />
                   <Line

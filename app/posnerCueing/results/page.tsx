@@ -174,7 +174,7 @@ export default function PosnerResultsPage() {
               <Tooltip
                 contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(v: number) => [`${v}ms`, 'RT']}
+                formatter={(v: any) => [`${v}ms`, 'RT']}
               />
               <Bar dataKey="rt" fill="#fbbf24" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -195,7 +195,7 @@ export default function PosnerResultsPage() {
               <Tooltip
                 contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(v: number, name: string) => [`${v}ms`, name === 'valid' ? 'Valid' : 'Invalid']}
+                formatter={(v: any, name: string) => [`${v}ms`, name === 'valid' ? 'Valid' : 'Invalid']}
               />
               <Legend
                 formatter={(value) => (value === 'valid' ? 'Valid' : 'Invalid')}
