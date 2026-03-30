@@ -205,7 +205,7 @@ export default function VisualSearchResultsPage() {
               />
               <Tooltip
                 contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                formatter={(v: any) => [`${v}ms`]}
+                formatter={(v: any) => [`${v}ms`] as any}
               />
               <Legend wrapperStyle={{ color: '#a1a1aa', paddingTop: 8 }} />
               <Line

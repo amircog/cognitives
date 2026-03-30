@@ -266,7 +266,7 @@ export default function PosnerTeacherPage() {
                   />
                   <Tooltip
                     contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                    formatter={(v: any) => [`${v}ms`, 'Avg RT']}
+                    formatter={(v: any) => [`${v}ms`, 'Avg RT'] as any}
                   />
                   <Bar dataKey="rt" fill="#fbbf24" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -292,7 +292,7 @@ export default function PosnerTeacherPage() {
                     <YAxis dataKey="name" type="category" tick={{ fill: '#a1a1aa', fontSize: 11 }} width={80} />
                     <Tooltip
                       contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                      formatter={(v: any) => [`${v}ms`, 'Effect']}
+                      formatter={(v: any) => [`${v}ms`, 'Effect'] as any}
                     />
                     <Bar dataKey="effect" fill="#fbbf24" radius={[0, 4, 4, 0]} />
                   </BarChart>
