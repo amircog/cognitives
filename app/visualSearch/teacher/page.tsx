@@ -46,18 +46,22 @@ interface AggStats {
   overallAccuracy: number;
 }
 
-function meanRT(rows: Array<{ rt_ms: number | null; correct: boolean; target_present: boolean }>,
-  filter: (r: typeof rows[0]) => boolean): number | null {
-  const filtered = rows.filter(filter);
-  const hits = filtered.filter(r => r.rt_ms != null);
-  return hits.length > 0 ? Math.round(hits.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / hits.length) : null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function meanRT(rows: any[], filter: (r: any) => boolean): number | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hits = rows.filter(filter).filter((r: any) => r.rt_ms != null);
+  return hits.length > 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? Math.round(hits.reduce((s: number, r: any) => s + (r.rt_ms ?? 0), 0) / hits.length)
+    : null;
 }
 
-function accuracy(rows: Array<{ correct: boolean }>,
-  filter: (r: typeof rows[0]) => boolean): number | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function accuracy(rows: any[], filter: (r: any) => boolean): number | null {
   const filtered = rows.filter(filter);
   return filtered.length > 0
-    ? Math.round((filtered.filter(r => r.correct).length / filtered.length) * 100)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? Math.round((filtered.filter((r: any) => r.correct).length / filtered.length) * 100)
     : null;
 }
 
