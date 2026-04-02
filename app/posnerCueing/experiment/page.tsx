@@ -62,7 +62,6 @@ export default function PosnerExperimentPage() {
         is_practice: trial.isPractice,
       };
       resultsRef.current.push(result);
-
       const supabase = getSupabase();
       if (supabase) {
         supabase.from('posner_results').insert(result).then(({ error }) => {
@@ -79,13 +78,8 @@ export default function PosnerExperimentPage() {
     const nextIndex = trialIndexRef.current + 1;
 
     if (nextIndex >= trials.length) {
-      if (isPracticeRef.current) {
-        setPhaseSync('practice_break');
-        return;
-      } else {
-        setPhaseSync('complete');
-        return;
-      }
+      if (isPracticeRef.current) { setPhaseSync('practice_break'); return; }
+      else { setPhaseSync('complete'); return; }
     }
 
     trialIndexRef.current = nextIndex;
@@ -112,10 +106,7 @@ export default function PosnerExperimentPage() {
             if (phaseRef.current !== 'target') return;
             if (!trial.isPractice) saveResult(trial, 'none', true, null);
             setPhaseSync('iti');
-            setTimeout(() => {
-              if (phaseRef.current !== 'iti') return;
-              advanceTrial();
-            }, 600);
+            setTimeout(() => { if (phaseRef.current !== 'iti') return; advanceTrial(); }, 600);
           }, 1500);
           catchTimeoutRef.current = catchTimeout;
         } else {
@@ -129,10 +120,7 @@ export default function PosnerExperimentPage() {
             setTimeout(() => {
               if (phaseRef.current !== 'feedback') return;
               setPhaseSync('iti');
-              setTimeout(() => {
-                if (phaseRef.current !== 'iti') return;
-                advanceTrial();
-              }, 600);
+              setTimeout(() => { if (phaseRef.current !== 'iti') return; advanceTrial(); }, 600);
             }, 500);
           }, 1500);
           missTimeoutRef.current = missTimeout;
@@ -141,7 +129,7 @@ export default function PosnerExperimentPage() {
     }, fixDuration);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Unified response handler (keyboard + touch) ──────────────────────────
+  // ── Unified response handler ─────────────────────────────────────────────
   const handleResponse = useCallback(() => {
     const p = phaseRef.current;
     const trial = currentTrialRef.current;
@@ -155,10 +143,7 @@ export default function PosnerExperimentPage() {
       setTimeout(() => {
         if (phaseRef.current !== 'feedback') return;
         setPhaseSync('iti');
-        setTimeout(() => {
-          if (phaseRef.current !== 'iti') return;
-          advanceTrial();
-        }, 600);
+        setTimeout(() => { if (phaseRef.current !== 'iti') return; advanceTrial(); }, 600);
       }, 500);
       return;
     }
@@ -172,25 +157,19 @@ export default function PosnerExperimentPage() {
         setTimeout(() => {
           if (phaseRef.current !== 'feedback') return;
           setPhaseSync('iti');
-          setTimeout(() => {
-            if (phaseRef.current !== 'iti') return;
-            advanceTrial();
-          }, 600);
+          setTimeout(() => { if (phaseRef.current !== 'iti') return; advanceTrial(); }, 600);
         }, 500);
       } else {
         const rt = performance.now() - startTimeRef.current;
         if (missTimeoutRef.current) clearTimeout(missTimeoutRef.current);
         if (!trial.isPractice) saveResult(trial, 'hit', true, Math.round(rt));
         setPhaseSync('iti');
-        setTimeout(() => {
-          if (phaseRef.current !== 'iti') return;
-          advanceTrial();
-        }, 600);
+        setTimeout(() => { if (phaseRef.current !== 'iti') return; advanceTrial(); }, 600);
       }
     }
   }, [advanceTrial, saveResult, setPhaseSync]);
 
-  // ── Keyboard handler ─────────────────────────────────────────────────────
+  // ── Keyboard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
@@ -205,22 +184,17 @@ export default function PosnerExperimentPage() {
   useEffect(() => {
     const sid = sessionStorage.getItem('posner_session_id') ?? '';
     const name = sessionStorage.getItem('posner_participant_name') ?? '';
-    if (!sid) {
-      router.push('/posnerCueing');
-      return;
-    }
+    if (!sid) { router.push('/posnerCueing'); return; }
     sessionIdRef.current = sid;
     participantNameRef.current = name;
 
     const practiceTrials = generatePracticeTrials();
     const mainTrials = generateMainTrials();
     mainTrialsRef.current = mainTrials;
-
     trialsRef.current = practiceTrials;
     isPracticeRef.current = true;
     setIsPracticeUI(true);
     trialIndexRef.current = -1;
-
     advanceTrial();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -243,38 +217,16 @@ export default function PosnerExperimentPage() {
     advanceTrial();
   }, [advanceTrial]);
 
-  // ── Derived display values ───────────────────────────────────────────────
+  // ── Derived display ──────────────────────────────────────────────────────
   const trial = currentTrialRef.current;
   const showCue = phase === 'cue' || phase === 'target';
   const showTarget = phase === 'target' && trial?.validity !== 'catch';
-
-  // For exo_invalid: red rectangle on cue side, no arrow
   const isExoTrial = trial?.validity === 'exo_invalid';
   const showExoRect = showCue && isExoTrial;
-
-  const cueSymbol = isExoTrial
-    ? '+'
-    : trial?.cueDirection === 'left'
-    ? '←'
-    : trial?.cueDirection === 'right'
-    ? '→'
-    : '+';
-  const centerSymbol =
-    phase === 'fixation'
-      ? '+'
-      : showCue
-      ? cueSymbol
-      : phase === 'iti'
-      ? ''
-      : '+';
-
-  const progressPct =
-    mainTrialsRef.current.length > 0
-      ? (mainProgress / mainTrialsRef.current.length) * 100
-      : 0;
-
-  const showResponseButton =
-    phase === 'fixation' || phase === 'cue' || phase === 'target';
+  const cueSymbol = isExoTrial ? '+' : trial?.cueDirection === 'left' ? '←' : trial?.cueDirection === 'right' ? '→' : '+';
+  const centerSymbol = phase === 'fixation' ? '+' : showCue ? cueSymbol : phase === 'iti' ? '' : '+';
+  const progressPct = mainTrialsRef.current.length > 0 ? (mainProgress / mainTrialsRef.current.length) * 100 : 0;
+  const showResponseButton = phase === 'fixation' || phase === 'cue' || phase === 'target';
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (phase === 'loading') {
@@ -305,82 +257,73 @@ export default function PosnerExperimentPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center select-none overflow-hidden">
-      {/* Progress bar */}
-      {!isPracticeUI && (
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-700">
+    <main className="min-h-screen bg-zinc-900 flex flex-col select-none" style={{ touchAction: 'manipulation' }}>
+      {/* ── Top bar ── */}
+      <div className="flex-shrink-0 h-6">
+        {!isPracticeUI && (
+          <div className="h-1.5 bg-zinc-700">
+            <div className="h-full bg-amber-400 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+          </div>
+        )}
+        {isPracticeUI && (
+          <div className="flex justify-center pt-1">
+            <span className="text-xs text-amber-400 bg-zinc-800 px-3 py-0.5 rounded-full border border-amber-400/30">
+              תרגול
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Centre: stimulus area ── */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden">
+        <div className="flex items-center gap-4 sm:gap-12 md:gap-16 w-full px-4 justify-center">
+          {/* Left box */}
           <div
-            className="h-full bg-amber-400 transition-all duration-300"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      )}
+            className={`flex-shrink-0 rounded-lg flex items-center justify-center transition-colors duration-75
+              ${showExoRect && trial?.cueDirection === 'left' ? 'border-4 border-red-500' : 'border-2 border-zinc-500'}`}
+            style={{ width: 'clamp(72px, 22vw, 128px)', height: 'clamp(72px, 22vw, 128px)' }}
+          >
+            {showTarget && trial?.targetSide === 'left' && (
+              <span className="text-white font-bold" style={{ fontSize: 'clamp(28px, 8vw, 40px)' }}>●</span>
+            )}
+          </div>
 
-      {/* Practice indicator */}
-      {isPracticeUI && (
-        <div className="absolute top-4 left-0 right-0 flex justify-center">
-          <span className="text-xs text-amber-400 bg-zinc-800 px-3 py-1 rounded-full border border-amber-400/30">
-            תרגול
-          </span>
-        </div>
-      )}
+          {/* Centre cue */}
+          <div className="flex-shrink-0 text-center" style={{ width: 'clamp(40px, 12vw, 72px)' }}>
+            <span className="text-white font-bold select-none" style={{ fontSize: 'clamp(24px, 7vw, 40px)' }}>
+              {centerSymbol}
+            </span>
+          </div>
 
-      {/* Experiment area – responsive */}
-      <div className="flex items-center justify-center gap-4 sm:gap-10 md:gap-16 w-full px-4">
-        {/* Left box */}
-        <div
-          className={`flex-shrink-0 w-[clamp(72px,22vw,128px)] h-[clamp(72px,22vw,128px)] rounded-lg flex items-center justify-center transition-colors duration-75
-            ${showExoRect && trial?.cueDirection === 'left'
-              ? 'border-4 border-red-500'
-              : 'border-2 border-zinc-500'
-            }`}
-        >
-          {showTarget && trial?.targetSide === 'left' && (
-            <span className="text-white text-[clamp(28px,8vw,40px)] font-bold">●</span>
-          )}
-        </div>
-
-        {/* Center fixation / cue */}
-        <div className="flex-shrink-0 w-[clamp(40px,12vw,72px)] text-center">
-          <span className="text-white text-[clamp(24px,7vw,40px)] font-bold select-none">
-            {centerSymbol}
-          </span>
-        </div>
-
-        {/* Right box */}
-        <div
-          className={`flex-shrink-0 w-[clamp(72px,22vw,128px)] h-[clamp(72px,22vw,128px)] rounded-lg flex items-center justify-center transition-colors duration-75
-            ${showExoRect && trial?.cueDirection === 'right'
-              ? 'border-4 border-red-500'
-              : 'border-2 border-zinc-500'
-            }`}
-        >
-          {showTarget && trial?.targetSide === 'right' && (
-            <span className="text-white text-[clamp(28px,8vw,40px)] font-bold">●</span>
-          )}
+          {/* Right box */}
+          <div
+            className={`flex-shrink-0 rounded-lg flex items-center justify-center transition-colors duration-75
+              ${showExoRect && trial?.cueDirection === 'right' ? 'border-4 border-red-500' : 'border-2 border-zinc-500'}`}
+            style={{ width: 'clamp(72px, 22vw, 128px)', height: 'clamp(72px, 22vw, 128px)' }}
+          >
+            {showTarget && trial?.targetSide === 'right' && (
+              <span className="text-white font-bold" style={{ fontSize: 'clamp(28px, 8vw, 40px)' }}>●</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Feedback message */}
-      {phase === 'feedback' && (
-        <div className="absolute bottom-32 sm:bottom-24 left-0 right-0 flex justify-center">
-          <span className="text-red-400 text-xl font-bold" dir="rtl">{feedbackMsg}</span>
-        </div>
-      )}
-
-      {/* Mobile response button */}
-      {showResponseButton && (
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center px-8">
+      {/* ── Bottom: feedback + response button ── */}
+      <div className="flex-shrink-0 flex flex-col items-center gap-3 px-8 pb-8 pt-4">
+        {phase === 'feedback' && (
+          <span className="text-red-400 text-lg font-bold" dir="rtl">{feedbackMsg}</span>
+        )}
+        {showResponseButton && (
           <button
             onPointerDown={(e) => { e.preventDefault(); handleResponse(); }}
             className="w-full max-w-xs h-16 bg-amber-400 text-zinc-900 font-bold text-xl rounded-2xl
-                       shadow-lg shadow-amber-400/30 active:scale-95 transition-transform
-                       touch-manipulation select-none"
+                       shadow-lg shadow-amber-400/30 active:scale-95 transition-transform touch-manipulation select-none"
           >
-            לחץ ● Tap
+            ● לחץ / Tap
           </button>
-        </div>
-      )}
+        )}
+        {!showResponseButton && phase !== 'feedback' && <div className="h-16" />}
+      </div>
     </main>
   );
 }

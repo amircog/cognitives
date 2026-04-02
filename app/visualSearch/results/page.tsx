@@ -4,98 +4,58 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 import { Search, Clock, CheckCircle } from 'lucide-react';
 import { VisualSearchResult } from '@/types/visual-search';
 
-interface SetSizeStat {
+const SS_LEVELS = [1, 2, 4, 8];
+
+interface SetSizePoint {
   setSize: number;
-  featureRT: number | null;
-  conjunctionRT: number | null;
+  rt: number | null;
+  accuracy: number | null;
 }
 
 interface Stats {
-  featureRT: number;
-  conjunctionRT: number;
-  featureAccuracy: number;
-  conjunctionAccuracy: number;
-  featureSlope: number;
-  conjunctionSlope: number;
-  setSizeData: SetSizeStat[];
-}
-
-/** Simple linear regression: returns slope (ms per item). */
-function linearSlope(points: Array<{ x: number; y: number }>): number {
-  if (points.length < 2) return 0;
-  const n = points.length;
-  const sumX = points.reduce((s, p) => s + p.x, 0);
-  const sumY = points.reduce((s, p) => s + p.y, 0);
-  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
-  const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
-  const denom = n * sumX2 - sumX * sumX;
-  if (denom === 0) return 0;
-  return (n * sumXY - sumX * sumY) / denom;
+  avgRT: number;
+  accuracy: number;
+  targetSSData: SetSizePoint[];
+  distractorSSData: SetSizePoint[];
+  targetColor: string;
 }
 
 function computeStats(results: VisualSearchResult[]): Stats {
-  const main = results.filter((r) => !r.is_practice);
+  const main = results.filter(r => !r.is_practice);
+  const correct = main.filter(r => r.correct);
 
-  // Feature block correct target-present hits
-  const featureHits = main.filter(
-    (r) => r.block === 'feature' && r.target_present && r.correct,
-  );
-  const conjunctionHits = main.filter(
-    (r) => r.block === 'conjunction' && r.target_present && r.correct,
-  );
+  const avgRT = correct.length > 0
+    ? Math.round(correct.reduce((s, r) => s + r.rt_ms, 0) / correct.length)
+    : 0;
+  const accuracy = main.length > 0
+    ? Math.round((correct.length / main.length) * 100)
+    : 0;
 
-  const mean = (arr: VisualSearchResult[]) =>
-    arr.length > 0 ? Math.round(arr.reduce((s, r) => s + r.rt_ms, 0) / arr.length) : 0;
+  const meanRT = (rows: VisualSearchResult[]) =>
+    rows.length > 0 ? Math.round(rows.reduce((s, r) => s + r.rt_ms, 0) / rows.length) : null;
+  const acc = (rows: VisualSearchResult[]) =>
+    rows.length > 0 ? Math.round((rows.filter(r => r.correct).length / rows.length) * 100) : null;
 
-  const featureRT = mean(featureHits);
-  const conjunctionRT = mean(conjunctionHits);
+  const targetSSData: SetSizePoint[] = SS_LEVELS.map(ss => ({
+    setSize: ss,
+    rt: meanRT(correct.filter(r => r.target_set_size === ss)),
+    accuracy: acc(main.filter(r => r.target_set_size === ss)),
+  }));
 
-  // Accuracy
-  const featureMain = main.filter((r) => r.block === 'feature');
-  const conjunctionMain = main.filter((r) => r.block === 'conjunction');
-  const acc = (arr: VisualSearchResult[]) =>
-    arr.length > 0 ? Math.round((arr.filter((r) => r.correct).length / arr.length) * 100) : 0;
+  const distractorSSData: SetSizePoint[] = SS_LEVELS.map(ss => ({
+    setSize: ss,
+    rt: meanRT(correct.filter(r => r.distractor_set_size === ss)),
+    accuracy: acc(main.filter(r => r.distractor_set_size === ss)),
+  }));
 
-  const featureAccuracy = acc(featureMain);
-  const conjunctionAccuracy = acc(conjunctionMain);
-
-  // RT × Set Size (correct target-present only)
-  const setSizes = [8, 16, 24] as const;
-  const setSizeData: SetSizeStat[] = setSizes.map((sz) => {
-    const fHits = featureHits.filter((r) => r.set_size === sz);
-    const cHits = conjunctionHits.filter((r) => r.set_size === sz);
-    return {
-      setSize: sz,
-      featureRT: fHits.length > 0 ? mean(fHits) : null,
-      conjunctionRT: cHits.length > 0 ? mean(cHits) : null,
-    };
-  });
-
-  // Slopes
-  const featurePoints = setSizeData
-    .filter((d) => d.featureRT != null)
-    .map((d) => ({ x: d.setSize, y: d.featureRT! }));
-  const conjunctionPoints = setSizeData
-    .filter((d) => d.conjunctionRT != null)
-    .map((d) => ({ x: d.setSize, y: d.conjunctionRT! }));
-
-  const featureSlope = Math.round(linearSlope(featurePoints) * 10) / 10;
-  const conjunctionSlope = Math.round(linearSlope(conjunctionPoints) * 10) / 10;
-
-  return {
-    featureRT,
-    conjunctionRT,
-    featureAccuracy,
-    conjunctionAccuracy,
-    featureSlope,
-    conjunctionSlope,
-    setSizeData,
-  };
+  const targetColor = main[0]?.target_color ?? 'red';
+  return { avgRT, accuracy, targetSSData, distractorSSData, targetColor };
 }
 
 export default function VisualSearchResultsPage() {
@@ -104,10 +64,7 @@ export default function VisualSearchResultsPage() {
 
   useEffect(() => {
     const raw = sessionStorage.getItem('visual_search_results');
-    if (!raw) {
-      router.push('/visualSearch');
-      return;
-    }
+    if (!raw) { router.push('/visualSearch'); return; }
     try {
       const results: VisualSearchResult[] = JSON.parse(raw);
       setStats(computeStats(results));
@@ -124,19 +81,8 @@ export default function VisualSearchResultsPage() {
     );
   }
 
-  const chartData = stats.setSizeData.map((d) => ({
-    setSize: d.setSize,
-    Feature: d.featureRT,
-    Conjunction: d.conjunctionRT,
-  }));
-
-  const featureInterpretation = stats.featureSlope < 15
-    ? 'קו שיפוע שטוח לחיפוש תכונה מצביע על חיפוש מקבילי – הT האדומה "קפצת" מיד לעין!'
-    : 'שיפוע מסוים נצפה בחיפוש תכונה – ייתכן שהיה קשה להבדיל.';
-
-  const conjunctionInterpretation = stats.conjunctionSlope > 20
-    ? `שיפוע תלול של ${stats.conjunctionSlope} מ"ש/פריט בחיפוש צירוף מצביע על חיפוש טורי – המוח בדק פריט אחר פריט.`
-    : `שיפוע נמוך יחסית של ${stats.conjunctionSlope} מ"ש/פריט – הניסוי מצביע על יעילות חיפוש גבוהה.`;
+  const chartStyle = { background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 };
+  const axisStyle = { fill: '#a1a1aa', fontSize: 11 };
 
   return (
     <main className="min-h-screen flex flex-col items-center py-8 px-4 md:px-8">
@@ -150,129 +96,78 @@ export default function VisualSearchResultsPage() {
           <Search className="w-8 h-8 text-rose-400" />
           <h1 className="text-4xl md:text-5xl font-bold text-center">התוצאות שלך</h1>
         </div>
-        <p className="text-muted text-center mb-8">ניסוי חיפוש חזותי – אינטגרציית תכונות</p>
+        <p className="text-muted text-center mb-8">ניסוי חיפוש חזותי</p>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-muted text-sm mb-1">
               <Clock className="w-4 h-4 text-blue-400" />
-              <span>Feature RT</span>
+              <span>Avg RT</span>
             </div>
-            <div className="text-2xl font-bold text-blue-400">{stats.featureRT}ms</div>
+            <div className="text-2xl font-bold text-blue-400">{stats.avgRT}ms</div>
           </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted text-sm mb-1">
-              <Clock className="w-4 h-4 text-rose-400" />
-              <span>Conjunction RT</span>
-            </div>
-            <div className="text-2xl font-bold text-rose-400">{stats.conjunctionRT}ms</div>
-          </div>
-
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-muted text-sm mb-1">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span>Feature Acc.</span>
+              <span>Accuracy</span>
             </div>
-            <div className="text-2xl font-bold text-emerald-400">{stats.featureAccuracy}%</div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted text-sm mb-1">
-              <CheckCircle className="w-4 h-4 text-orange-400" />
-              <span>Conjunction Acc.</span>
-            </div>
-            <div className="text-2xl font-bold text-orange-400">{stats.conjunctionAccuracy}%</div>
+            <div className="text-2xl font-bold text-emerald-400">{stats.accuracy}%</div>
           </div>
         </div>
 
-        {/* RT × Set Size chart */}
+        {/* RT vs target set size */}
         <div className="bg-card border border-border rounded-xl p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-1">זמן תגובה לפי גודל המערך</h2>
-          <p className="text-sm text-muted mb-4">ניסיונות נכונים – יעד נוכח בלבד</p>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={chartData} margin={{ left: 10, bottom: 20, right: 20 }}>
+          <h2 className="text-lg font-semibold mb-1">RT & Accuracy vs Target Set Size</h2>
+          <p className="text-sm text-muted mb-4">Same-color items (including target T when present)</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={stats.targetSSData} margin={{ left: 10, right: 40, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-              <XAxis
-                dataKey="setSize"
-                tick={{ fill: '#a1a1aa' }}
-                label={{ value: 'גודל מערך', position: 'insideBottom', offset: -10, style: { fill: '#a1a1aa', fontSize: 12 } }}
-              />
-              <YAxis
-                tick={{ fill: '#a1a1aa' }}
-                label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 12 } }}
-              />
-              <Tooltip
-                contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                formatter={(v: any) => [`${v}ms`] as any}
-              />
+              <XAxis dataKey="setSize" tick={axisStyle}
+                label={{ value: 'Target Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+              <YAxis yAxisId="rt" orientation="left" tick={axisStyle}
+                label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: axisStyle }} />
+              <YAxis yAxisId="acc" orientation="right" domain={[0, 100]} tick={axisStyle}
+                label={{ value: 'Accuracy (%)', angle: 90, position: 'insideRight', style: axisStyle }} />
+              <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [v, ''] : ['N/A', ''] as any} />
               <Legend wrapperStyle={{ color: '#a1a1aa', paddingTop: 8 }} />
-              <Line
-                type="monotone"
-                dataKey="Feature"
-                stroke="#3b82f6"
-                strokeWidth={2.5}
-                dot={{ r: 5, fill: '#3b82f6' }}
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="Conjunction"
-                stroke="#fb7185"
-                strokeWidth={2.5}
-                dot={{ r: 5, fill: '#fb7185' }}
-                connectNulls
-              />
-            </LineChart>
+              <Bar yAxisId="rt" dataKey="rt" name="RT (ms)" fill="#3b82f6" opacity={0.7} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="acc" type="monotone" dataKey="accuracy" name="Accuracy (%)"
+                stroke="#fb7185" strokeWidth={2.5} dot={{ r: 5, fill: '#fb7185' }} connectNulls />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Slope analysis */}
-        <div className="bg-card border border-border rounded-xl p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-3">ניתוח שיפוע</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-muted mb-1">Feature Slope</p>
-              <p className="text-xl font-bold text-blue-400">{stats.featureSlope} ms/item</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted mb-1">Conjunction Slope</p>
-              <p className="text-xl font-bold text-rose-400">{stats.conjunctionSlope} ms/item</p>
-            </div>
-          </div>
+        {/* RT vs distractor set size */}
+        <div className="bg-card border border-border rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-1">RT & Accuracy vs Distractor Set Size</h2>
+          <p className="text-sm text-muted mb-4">Opposite-color T's in display</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={stats.distractorSSData} margin={{ left: 10, right: 40, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+              <XAxis dataKey="setSize" tick={axisStyle}
+                label={{ value: 'Distractor Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+              <YAxis yAxisId="rt" orientation="left" tick={axisStyle}
+                label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: axisStyle }} />
+              <YAxis yAxisId="acc" orientation="right" domain={[0, 100]} tick={axisStyle}
+                label={{ value: 'Accuracy (%)', angle: 90, position: 'insideRight', style: axisStyle }} />
+              <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [v, ''] : ['N/A', ''] as any} />
+              <Legend wrapperStyle={{ color: '#a1a1aa', paddingTop: 8 }} />
+              <Bar yAxisId="rt" dataKey="rt" name="RT (ms)" fill="#a855f7" opacity={0.7} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="acc" type="monotone" dataKey="accuracy" name="Accuracy (%)"
+                stroke="#fb7185" strokeWidth={2.5} dot={{ r: 5, fill: '#fb7185' }} connectNulls />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Interpretation */}
-        <div className="bg-card border border-rose-400/20 rounded-xl p-6 mb-8 space-y-3">
-          <h2 className="text-lg font-semibold">פירוש</h2>
-          <p className="text-muted text-sm leading-relaxed" dir="rtl">{featureInterpretation}</p>
-          <p className="text-muted text-sm leading-relaxed" dir="rtl">{conjunctionInterpretation}</p>
-          <p className="text-muted text-sm leading-relaxed" dir="rtl">
-            לפי תיאוריית האינטגרציית תכונות של טריסמן, חיפוש תכונה (צבע בלבד) מתרחש
-            בצורה מקבילה ומהירה, בעוד שחיפוש צירוף (צבע + אות) דורש קשב ממוקד ועיבוד טורי.
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex justify-center">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => router.push('/')}
-            className="px-6 py-3 bg-card border border-border rounded-xl font-medium
-                       transition-colors hover:bg-border"
+            className="px-6 py-3 bg-card border border-border rounded-xl font-medium transition-colors hover:bg-border"
           >
             חזרה לדף הבית
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push('/visualSearch/teacher')}
-            className="px-6 py-3 bg-rose-500 text-white rounded-xl font-medium
-                       transition-colors hover:bg-rose-400"
-          >
-            Teacher Dashboard
           </motion.button>
         </div>
       </motion.div>

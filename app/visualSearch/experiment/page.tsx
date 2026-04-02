@@ -16,12 +16,8 @@ type Stage =
   | 'practice_break'
   | 'complete';
 
-const ITEM_COLOR: Record<string, string> = {
-  red: '#ef4444',
-  blue: '#3b82f6',
-};
-
-const DISPLAY_CENTER = 300; // 600×600 coordinate space
+const ITEM_COLOR: Record<string, string> = { red: '#ef4444', blue: '#3b82f6' };
+const DISPLAY_CENTER = 300;
 
 export default function VisualSearchExperimentPage() {
   const router = useRouter();
@@ -32,7 +28,9 @@ export default function VisualSearchExperimentPage() {
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [blockProgress, setBlockProgress] = useState(0);
   const [totalMainTrials, setTotalMainTrials] = useState(128);
-  const [displayScale, setDisplayScale] = useState(1);
+  const [isPracticeUI, setIsPracticeUI] = useState(true);
+  // displayScale: start at 0.8 to avoid initial overflow flash on mobile
+  const [displayScale, setDisplayScale] = useState(0.8);
 
   // Refs
   const stageRef = useRef<Stage>('loading');
@@ -48,24 +46,27 @@ export default function VisualSearchExperimentPage() {
   const isPracticeRef = useRef(true);
   const mainTrialCountRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const displayContainerRef = useRef<HTMLDivElement>(null);
 
   const setStageSync = useCallback((s: Stage) => {
     stageRef.current = s;
     setStage(s);
   }, []);
 
-  // Responsive scaling
+  // ── Compute display scale based on available area ────────────────────────
   useEffect(() => {
-    const updateScale = () => {
-      const w = containerRef.current?.clientWidth ?? window.innerWidth;
-      const h = window.innerHeight;
-      const available = Math.min(w * 0.95, h * 0.6, 520);
+    const update = () => {
+      const containerEl = displayContainerRef.current;
+      if (!containerEl) return;
+      const containerW = containerEl.clientWidth;
+      const containerH = containerEl.clientHeight;
+      // Leave breathing room; cap at 500px
+      const available = Math.min(containerW * 0.98, containerH * 0.98, 500);
       setDisplayScale(available / 600);
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
   // ── Save result ──────────────────────────────────────────────────────────
@@ -108,13 +109,8 @@ export default function VisualSearchExperimentPage() {
     const nextIndex = trialIndexRef.current + 1;
 
     if (nextIndex >= trials.length) {
-      if (isPracticeRef.current) {
-        setStageSync('practice_break');
-        return;
-      } else {
-        setStageSync('complete');
-        return;
-      }
+      if (isPracticeRef.current) { setStageSync('practice_break'); return; }
+      else { setStageSync('complete'); return; }
     }
 
     trialIndexRef.current = nextIndex;
@@ -127,7 +123,6 @@ export default function VisualSearchExperimentPage() {
       setBlockProgress(mainTrialCountRef.current);
     }
 
-    // Fixation 500ms → blank 200ms → search (5000ms timeout)
     setStageSync('fixation');
     timeoutRef.current = setTimeout(() => {
       if (stageRef.current !== 'fixation') return;
@@ -154,14 +149,13 @@ export default function VisualSearchExperimentPage() {
     }, 500);
   }, [saveResult, setStageSync]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Unified response handler ─────────────────────────────────────────────
+  // ── Response handler ─────────────────────────────────────────────────────
   const handleResponse = useCallback((response: 'present' | 'absent') => {
     if (stageRef.current !== 'search') return;
     const trial = currentTrialRef.current;
     if (!trial) return;
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
     const rt = Math.round(performance.now() - startTimeRef.current);
     const correct =
       (response === 'present' && trial.targetPresent) ||
@@ -175,21 +169,15 @@ export default function VisualSearchExperimentPage() {
       timeoutRef.current = setTimeout(() => {
         if (stageRef.current !== 'feedback') return;
         setStageSync('iti');
-        timeoutRef.current = setTimeout(() => {
-          if (stageRef.current !== 'iti') return;
-          advanceTrial();
-        }, 500);
+        timeoutRef.current = setTimeout(() => { if (stageRef.current !== 'iti') return; advanceTrial(); }, 500);
       }, 500);
     } else {
       setStageSync('iti');
-      timeoutRef.current = setTimeout(() => {
-        if (stageRef.current !== 'iti') return;
-        advanceTrial();
-      }, 500);
+      timeoutRef.current = setTimeout(() => { if (stageRef.current !== 'iti') return; advanceTrial(); }, 500);
     }
   }, [advanceTrial, saveResult, setStageSync]);
 
-  // ── Keyboard handler ─────────────────────────────────────────────────────
+  // ── Keyboard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyL') { e.preventDefault(); handleResponse('present'); }
@@ -203,14 +191,10 @@ export default function VisualSearchExperimentPage() {
   useEffect(() => {
     const sid = sessionStorage.getItem('vs_session_id') ?? '';
     const name = sessionStorage.getItem('vs_participant_name') ?? '';
-    if (!sid) {
-      router.push('/visualSearch');
-      return;
-    }
+    if (!sid) { router.push('/visualSearch'); return; }
     sessionIdRef.current = sid;
     participantNameRef.current = name;
 
-    // Assign/read target color counterbalancing
     let tc = sessionStorage.getItem('vs_target_color') as 'red' | 'blue' | null;
     if (!tc) {
       tc = Math.random() < 0.5 ? 'red' : 'blue';
@@ -226,7 +210,6 @@ export default function VisualSearchExperimentPage() {
     trialsRef.current = practiceTrials;
     isPracticeRef.current = true;
     trialIndexRef.current = -1;
-
     advanceTrial();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -242,16 +225,17 @@ export default function VisualSearchExperimentPage() {
   const startMainTrials = useCallback(() => {
     trialsRef.current = mainTrialsRef.current;
     isPracticeRef.current = false;
+    setIsPracticeUI(false);
     trialIndexRef.current = -1;
     mainTrialCountRef.current = 0;
     setBlockProgress(0);
     advanceTrial();
   }, [advanceTrial]);
 
-  // ── Render ───────────────────────────────────────────────────────────────
   const progressPct = totalMainTrials > 0 ? (blockProgress / totalMainTrials) * 100 : 0;
   const trial = currentTrial;
 
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (stage === 'loading') {
     return (
       <main className="min-h-screen bg-zinc-900 flex items-center justify-center">
@@ -260,6 +244,7 @@ export default function VisualSearchExperimentPage() {
     );
   }
 
+  // ── Practice break ───────────────────────────────────────────────────────
   if (stage === 'practice_break') {
     const tc = targetColorRef.current;
     return (
@@ -270,7 +255,7 @@ export default function VisualSearchExperimentPage() {
           <p className="text-white text-lg mb-2">כעת יתחיל הניסוי האמיתי.</p>
           <p className="text-zinc-400 text-sm mb-3">128 ניסיונות</p>
           <p className="text-zinc-300 text-sm">
-            היעד שלך:{' '}
+            היעד:{' '}
             <span style={{ color: ITEM_COLOR[tc], fontWeight: 'bold', fontFamily: 'monospace', fontSize: 18 }}>T</span>
             {' '}({tc === 'red' ? 'T אדומה' : 'T כחולה'})
           </p>
@@ -285,40 +270,42 @@ export default function VisualSearchExperimentPage() {
     );
   }
 
+  // ── Main experiment layout ───────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center select-none overflow-hidden">
-      {/* Progress bar */}
-      {!isPracticeRef.current && (
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-700">
-          <div
-            className="h-full bg-rose-500 transition-all duration-300"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      )}
+    <main className="bg-zinc-900 flex flex-col select-none" style={{ height: '100dvh', touchAction: 'manipulation' }}>
 
-      {/* Practice label */}
-      {isPracticeRef.current && (
-        <div className="absolute top-3 left-0 right-0 flex justify-center">
-          <span className="text-xs text-rose-400 bg-zinc-800 px-3 py-1 rounded-full border border-rose-400/30">
-            תרגול
-          </span>
-        </div>
-      )}
+      {/* Top bar: progress / practice label */}
+      <div className="flex-shrink-0" style={{ height: 24 }}>
+        {!isPracticeUI && (
+          <div className="h-1.5 bg-zinc-700">
+            <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+          </div>
+        )}
+        {isPracticeUI && (
+          <div className="flex justify-center pt-1">
+            <span className="text-xs text-rose-400 bg-zinc-800 px-3 py-0.5 rounded-full border border-rose-400/30">
+              תרגול
+            </span>
+          </div>
+        )}
+      </div>
 
-      {/* Main experiment area */}
-      <div ref={containerRef} className="flex flex-col items-center justify-center w-full px-2">
+      {/* Centre: display area — flex-1 so it fills remaining space */}
+      <div
+        ref={displayContainerRef}
+        className="flex-1 flex items-center justify-center overflow-hidden"
+      >
         {/* Fixation */}
         {stage === 'fixation' && (
-          <span className="text-white text-4xl font-bold select-none">+</span>
+          <span className="text-white text-4xl font-bold">+</span>
         )}
 
-        {/* Blank / ITI */}
+        {/* Blank or ITI */}
         {(stage === 'blank' || stage === 'iti') && (
-          <span className="text-transparent select-none">.</span>
+          <span className="opacity-0">.</span>
         )}
 
-        {/* Search display – scaled for mobile */}
+        {/* Search display — scaled to fit */}
         {stage === 'search' && trial && (
           <div
             style={{
@@ -328,6 +315,7 @@ export default function VisualSearchExperimentPage() {
               flexShrink: 0,
             }}
           >
+            {/* Inner 600×600 coordinate space, scaled via transform */}
             <div
               style={{
                 position: 'absolute',
@@ -378,23 +366,27 @@ export default function VisualSearchExperimentPage() {
         )}
       </div>
 
-      {/* Response buttons (always shown at bottom) */}
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4 px-6">
+      {/* Bottom: response buttons — always visible */}
+      <div className="flex-shrink-0 flex justify-center gap-4 px-6 pb-6 pt-3">
         <button
           onPointerDown={(e) => { e.preventDefault(); handleResponse('present'); }}
-          className="flex-1 max-w-[160px] h-14 bg-emerald-500 text-white font-bold text-base rounded-xl
-                     shadow-lg active:scale-95 transition-transform touch-manipulation select-none"
+          className="flex-1 max-w-[170px] bg-emerald-600 text-white font-bold rounded-2xl
+                     shadow-lg active:scale-95 transition-transform touch-manipulation select-none
+                     flex flex-col items-center justify-center"
+          style={{ height: 64 }}
         >
-          <span className="block text-lg leading-tight">נמצא</span>
-          <span className="block text-xs opacity-70">L</span>
+          <span className="text-lg leading-tight">נמצא ✓</span>
+          <span className="text-xs opacity-60">L</span>
         </button>
         <button
           onPointerDown={(e) => { e.preventDefault(); handleResponse('absent'); }}
-          className="flex-1 max-w-[160px] h-14 bg-rose-500 text-white font-bold text-base rounded-xl
-                     shadow-lg active:scale-95 transition-transform touch-manipulation select-none"
+          className="flex-1 max-w-[170px] bg-rose-600 text-white font-bold rounded-2xl
+                     shadow-lg active:scale-95 transition-transform touch-manipulation select-none
+                     flex flex-col items-center justify-center"
+          style={{ height: 64 }}
         >
-          <span className="block text-lg leading-tight">לא נמצא</span>
-          <span className="block text-xs opacity-70">A</span>
+          <span className="text-lg leading-tight">לא נמצא ✗</span>
+          <span className="text-xs opacity-60">A</span>
         </button>
       </div>
     </main>
