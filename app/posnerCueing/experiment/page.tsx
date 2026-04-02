@@ -19,13 +19,13 @@ type Phase =
 export default function PosnerExperimentPage() {
   const router = useRouter();
 
-  // UI state (safe to render)
+  // UI state
   const [phase, setPhase] = useState<Phase>('loading');
   const [feedbackMsg, setFeedbackMsg] = useState('');
-  const [mainProgress, setMainProgress] = useState(0); // 0–112
+  const [mainProgress, setMainProgress] = useState(0);
   const [isPracticeUI, setIsPracticeUI] = useState(true);
 
-  // Refs to avoid stale closures in setTimeout callbacks
+  // Refs
   const phaseRef = useRef<Phase>('loading');
   const isPracticeRef = useRef(true);
   const trialIndexRef = useRef(0);
@@ -36,98 +36,16 @@ export default function PosnerExperimentPage() {
   const mainTrialsRef = useRef<PosnerTrial[]>([]);
   const sessionIdRef = useRef('');
   const participantNameRef = useRef('');
-  const mainTrialCountRef = useRef(0); // how many main trials completed
+  const mainTrialCountRef = useRef(0);
+  const missTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const catchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep phaseRef in sync with phase state
   const setPhaseSync = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhase(p);
   }, []);
 
-  // ── Advance to next trial ────────────────────────────────────────────────
-  const advanceTrial = useCallback(() => {
-    const trials = trialsRef.current;
-    const nextIndex = trialIndexRef.current + 1;
-
-    if (nextIndex >= trials.length) {
-      if (isPracticeRef.current) {
-        // Practice done → show break screen
-        setPhaseSync('practice_break');
-        return;
-      } else {
-        // Main trials done → complete
-        setPhaseSync('complete');
-        return;
-      }
-    }
-
-    trialIndexRef.current = nextIndex;
-    currentTrialRef.current = trials[nextIndex];
-
-    if (!isPracticeRef.current) {
-      mainTrialCountRef.current += 1;
-      setMainProgress(mainTrialCountRef.current);
-    }
-
-    // Start fixation
-    const fixDuration = 800 + Math.floor(Math.random() * 401); // 800–1200ms
-    setPhaseSync('fixation');
-
-    setTimeout(() => {
-      if (phaseRef.current !== 'fixation') return;
-      const trial = currentTrialRef.current!;
-      setPhaseSync('cue');
-
-      setTimeout(() => {
-        if (phaseRef.current !== 'cue') return;
-        if (trial.validity === 'catch') {
-          // No target – just show cue; wait for response (or timeout)
-          setPhaseSync('target');
-          const catchTimeout = setTimeout(() => {
-            if (phaseRef.current !== 'target') return;
-            // Correct non-response on catch
-            if (!trial.isPractice) {
-              saveResult(trial, 'none', true, null);
-            }
-            setPhaseSync('iti');
-            setTimeout(() => {
-              if (phaseRef.current !== 'iti') return;
-              advanceTrial();
-            }, 600);
-          }, 1500);
-          // Store timeout id so keydown can clear it
-          catchTimeoutRef.current = catchTimeout;
-        } else {
-          // Show target
-          setPhaseSync('target');
-          startTimeRef.current = performance.now();
-          const missTimeout = setTimeout(() => {
-            if (phaseRef.current !== 'target') return;
-            // Miss
-            if (!trial.isPractice) {
-              saveResult(trial, 'miss', false, null);
-            }
-            setFeedbackMsg('!פספסת – נסה ללחוץ מהר יותר');
-            setPhaseSync('feedback');
-            setTimeout(() => {
-              if (phaseRef.current !== 'feedback') return;
-              setPhaseSync('iti');
-              setTimeout(() => {
-                if (phaseRef.current !== 'iti') return;
-                advanceTrial();
-              }, 600);
-            }, 500);
-          }, 1500);
-          missTimeoutRef.current = missTimeout;
-        }
-      }, trial.soa);
-    }, fixDuration);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const missTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const catchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Save result to Supabase ──────────────────────────────────────────────
+  // ── Save result ──────────────────────────────────────────────────────────
   const saveResult = useCallback(
     (trial: PosnerTrial, response: string, correct: boolean, rt: number | null) => {
       const result: PosnerResult = {
@@ -155,21 +73,101 @@ export default function PosnerExperimentPage() {
     [],
   );
 
-  // ── Keyboard handler ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
-      e.preventDefault();
+  // ── Advance trial ────────────────────────────────────────────────────────
+  const advanceTrial = useCallback(() => {
+    const trials = trialsRef.current;
+    const nextIndex = trialIndexRef.current + 1;
 
-      const p = phaseRef.current;
-      const trial = currentTrialRef.current;
-      if (!trial) return;
+    if (nextIndex >= trials.length) {
+      if (isPracticeRef.current) {
+        setPhaseSync('practice_break');
+        return;
+      } else {
+        setPhaseSync('complete');
+        return;
+      }
+    }
 
-      if (p === 'fixation' || p === 'cue') {
-        // Too early
-        if (missTimeoutRef.current) clearTimeout(missTimeoutRef.current);
+    trialIndexRef.current = nextIndex;
+    currentTrialRef.current = trials[nextIndex];
+
+    if (!isPracticeRef.current) {
+      mainTrialCountRef.current += 1;
+      setMainProgress(mainTrialCountRef.current);
+    }
+
+    const fixDuration = 800 + Math.floor(Math.random() * 401);
+    setPhaseSync('fixation');
+
+    setTimeout(() => {
+      if (phaseRef.current !== 'fixation') return;
+      const trial = currentTrialRef.current!;
+      setPhaseSync('cue');
+
+      setTimeout(() => {
+        if (phaseRef.current !== 'cue') return;
+        if (trial.validity === 'catch') {
+          setPhaseSync('target');
+          const catchTimeout = setTimeout(() => {
+            if (phaseRef.current !== 'target') return;
+            if (!trial.isPractice) saveResult(trial, 'none', true, null);
+            setPhaseSync('iti');
+            setTimeout(() => {
+              if (phaseRef.current !== 'iti') return;
+              advanceTrial();
+            }, 600);
+          }, 1500);
+          catchTimeoutRef.current = catchTimeout;
+        } else {
+          setPhaseSync('target');
+          startTimeRef.current = performance.now();
+          const missTimeout = setTimeout(() => {
+            if (phaseRef.current !== 'target') return;
+            if (!trial.isPractice) saveResult(trial, 'miss', false, null);
+            setFeedbackMsg('!פספסת – נסה ללחוץ מהר יותר');
+            setPhaseSync('feedback');
+            setTimeout(() => {
+              if (phaseRef.current !== 'feedback') return;
+              setPhaseSync('iti');
+              setTimeout(() => {
+                if (phaseRef.current !== 'iti') return;
+                advanceTrial();
+              }, 600);
+            }, 500);
+          }, 1500);
+          missTimeoutRef.current = missTimeout;
+        }
+      }, trial.soa);
+    }, fixDuration);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Unified response handler (keyboard + touch) ──────────────────────────
+  const handleResponse = useCallback(() => {
+    const p = phaseRef.current;
+    const trial = currentTrialRef.current;
+    if (!trial) return;
+
+    if (p === 'fixation' || p === 'cue') {
+      if (missTimeoutRef.current) clearTimeout(missTimeoutRef.current);
+      if (catchTimeoutRef.current) clearTimeout(catchTimeoutRef.current);
+      setFeedbackMsg('!מוקדם מדי – המתן ל-●');
+      setPhaseSync('feedback');
+      setTimeout(() => {
+        if (phaseRef.current !== 'feedback') return;
+        setPhaseSync('iti');
+        setTimeout(() => {
+          if (phaseRef.current !== 'iti') return;
+          advanceTrial();
+        }, 600);
+      }, 500);
+      return;
+    }
+
+    if (p === 'target') {
+      if (trial.validity === 'catch') {
         if (catchTimeoutRef.current) clearTimeout(catchTimeoutRef.current);
-        setFeedbackMsg('!מוקדם מדי – המתן ל-●');
+        if (!trial.isPractice) saveResult(trial, 'false_alarm', false, null);
+        setFeedbackMsg('!לא היה יעד – אל תלחץ');
         setPhaseSync('feedback');
         setTimeout(() => {
           if (phaseRef.current !== 'feedback') return;
@@ -179,47 +177,31 @@ export default function PosnerExperimentPage() {
             advanceTrial();
           }, 600);
         }, 500);
-        return;
+      } else {
+        const rt = performance.now() - startTimeRef.current;
+        if (missTimeoutRef.current) clearTimeout(missTimeoutRef.current);
+        if (!trial.isPractice) saveResult(trial, 'hit', true, Math.round(rt));
+        setPhaseSync('iti');
+        setTimeout(() => {
+          if (phaseRef.current !== 'iti') return;
+          advanceTrial();
+        }, 600);
       }
-
-      if (p === 'target') {
-        if (trial.validity === 'catch') {
-          // False alarm
-          if (catchTimeoutRef.current) clearTimeout(catchTimeoutRef.current);
-          if (!trial.isPractice) {
-            saveResult(trial, 'false_alarm', false, null);
-          }
-          setFeedbackMsg('!לא היה יעד – אל תלחץ');
-          setPhaseSync('feedback');
-          setTimeout(() => {
-            if (phaseRef.current !== 'feedback') return;
-            setPhaseSync('iti');
-            setTimeout(() => {
-              if (phaseRef.current !== 'iti') return;
-              advanceTrial();
-            }, 600);
-          }, 500);
-        } else {
-          // Hit
-          const rt = performance.now() - startTimeRef.current;
-          if (missTimeoutRef.current) clearTimeout(missTimeoutRef.current);
-          if (!trial.isPractice) {
-            saveResult(trial, 'hit', true, Math.round(rt));
-          }
-          setPhaseSync('iti');
-          setTimeout(() => {
-            if (phaseRef.current !== 'iti') return;
-            advanceTrial();
-          }, 600);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    }
   }, [advanceTrial, saveResult, setPhaseSync]);
 
-  // ── Initialise experiment ────────────────────────────────────────────────
+  // ── Keyboard handler ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      e.preventDefault();
+      handleResponse();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [handleResponse]);
+
+  // ── Initialise ───────────────────────────────────────────────────────────
   useEffect(() => {
     const sid = sessionStorage.getItem('posner_session_id') ?? '';
     const name = sessionStorage.getItem('posner_participant_name') ?? '';
@@ -242,7 +224,7 @@ export default function PosnerExperimentPage() {
     advanceTrial();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Handle complete ──────────────────────────────────────────────────────
+  // ── Complete ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase === 'complete') {
       sessionStorage.setItem('posner_results', JSON.stringify(resultsRef.current));
@@ -250,7 +232,7 @@ export default function PosnerExperimentPage() {
     }
   }, [phase, router]);
 
-  // ── Start main trials after practice break ───────────────────────────────
+  // ── Start main trials ────────────────────────────────────────────────────
   const startMainTrials = useCallback(() => {
     trialsRef.current = mainTrialsRef.current;
     isPracticeRef.current = false;
@@ -265,12 +247,34 @@ export default function PosnerExperimentPage() {
   const trial = currentTrialRef.current;
   const showCue = phase === 'cue' || phase === 'target';
   const showTarget = phase === 'target' && trial?.validity !== 'catch';
-  const cueSymbol = trial?.cueDirection === 'left' ? '←' : trial?.cueDirection === 'right' ? '→' : '+';
-  const centerSymbol = phase === 'fixation' ? '+' : showCue ? cueSymbol : phase === 'iti' ? '' : '+';
 
-  const progressPct = mainTrialsRef.current.length > 0
-    ? (mainProgress / mainTrialsRef.current.length) * 100
-    : 0;
+  // For exo_invalid: red rectangle on cue side, no arrow
+  const isExoTrial = trial?.validity === 'exo_invalid';
+  const showExoRect = showCue && isExoTrial;
+
+  const cueSymbol = isExoTrial
+    ? '+'
+    : trial?.cueDirection === 'left'
+    ? '←'
+    : trial?.cueDirection === 'right'
+    ? '→'
+    : '+';
+  const centerSymbol =
+    phase === 'fixation'
+      ? '+'
+      : showCue
+      ? cueSymbol
+      : phase === 'iti'
+      ? ''
+      : '+';
+
+  const progressPct =
+    mainTrialsRef.current.length > 0
+      ? (mainProgress / mainTrialsRef.current.length) * 100
+      : 0;
+
+  const showResponseButton =
+    phase === 'fixation' || phase === 'cue' || phase === 'target';
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (phase === 'loading') {
@@ -288,11 +292,11 @@ export default function PosnerExperimentPage() {
           <p className="text-4xl mb-4">✓</p>
           <h2 className="text-3xl font-bold text-amber-400 mb-3">!תרגול הסתיים</h2>
           <p className="text-white text-lg mb-2">עכשיו יתחיל הניסוי האמיתי.</p>
-          <p className="text-zinc-400 text-sm">112 ניסיונות</p>
+          <p className="text-zinc-400 text-sm">132 ניסיונות</p>
         </div>
         <button
           onClick={startMainTrials}
-          className="px-10 py-4 bg-amber-400 hover:bg-amber-300 text-zinc-900 font-bold text-xl rounded-xl transition-colors"
+          className="px-10 py-4 bg-amber-400 hover:bg-amber-300 text-zinc-900 font-bold text-xl rounded-xl transition-colors touch-manipulation"
         >
           התחל
         </button>
@@ -302,7 +306,7 @@ export default function PosnerExperimentPage() {
 
   return (
     <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center select-none overflow-hidden">
-      {/* Progress bar (main trials only) */}
+      {/* Progress bar */}
       {!isPracticeUI && (
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-700">
           <div
@@ -321,40 +325,60 @@ export default function PosnerExperimentPage() {
         </div>
       )}
 
-      {/* Experiment area */}
-      <div className="flex items-center justify-center gap-0">
+      {/* Experiment area – responsive */}
+      <div className="flex items-center justify-center gap-4 sm:gap-10 md:gap-16 w-full px-4">
         {/* Left box */}
         <div
-          className="w-32 h-32 border-2 border-zinc-500 rounded-lg flex items-center justify-center"
-          style={{ marginRight: '120px' }}
+          className={`flex-shrink-0 w-[clamp(72px,22vw,128px)] h-[clamp(72px,22vw,128px)] rounded-lg flex items-center justify-center transition-colors duration-75
+            ${showExoRect && trial?.cueDirection === 'left'
+              ? 'border-4 border-red-500'
+              : 'border-2 border-zinc-500'
+            }`}
         >
           {showTarget && trial?.targetSide === 'left' && (
-            <span className="text-white text-4xl font-bold">●</span>
+            <span className="text-white text-[clamp(28px,8vw,40px)] font-bold">●</span>
           )}
         </div>
 
         {/* Center fixation / cue */}
-        <div className="w-20 text-center" style={{ position: 'absolute' }}>
-          <span className="text-white text-4xl font-bold select-none">
+        <div className="flex-shrink-0 w-[clamp(40px,12vw,72px)] text-center">
+          <span className="text-white text-[clamp(24px,7vw,40px)] font-bold select-none">
             {centerSymbol}
           </span>
         </div>
 
         {/* Right box */}
         <div
-          className="w-32 h-32 border-2 border-zinc-500 rounded-lg flex items-center justify-center"
-          style={{ marginLeft: '120px' }}
+          className={`flex-shrink-0 w-[clamp(72px,22vw,128px)] h-[clamp(72px,22vw,128px)] rounded-lg flex items-center justify-center transition-colors duration-75
+            ${showExoRect && trial?.cueDirection === 'right'
+              ? 'border-4 border-red-500'
+              : 'border-2 border-zinc-500'
+            }`}
         >
           {showTarget && trial?.targetSide === 'right' && (
-            <span className="text-white text-4xl font-bold">●</span>
+            <span className="text-white text-[clamp(28px,8vw,40px)] font-bold">●</span>
           )}
         </div>
       </div>
 
       {/* Feedback message */}
       {phase === 'feedback' && (
-        <div className="absolute bottom-24 left-0 right-0 flex justify-center">
+        <div className="absolute bottom-32 sm:bottom-24 left-0 right-0 flex justify-center">
           <span className="text-red-400 text-xl font-bold" dir="rtl">{feedbackMsg}</span>
+        </div>
+      )}
+
+      {/* Mobile response button */}
+      {showResponseButton && (
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center px-8">
+          <button
+            onPointerDown={(e) => { e.preventDefault(); handleResponse(); }}
+            className="w-full max-w-xs h-16 bg-amber-400 text-zinc-900 font-bold text-xl rounded-2xl
+                       shadow-lg shadow-amber-400/30 active:scale-95 transition-transform
+                       touch-manipulation select-none"
+          >
+            לחץ ● Tap
+          </button>
         </div>
       )}
     </main>

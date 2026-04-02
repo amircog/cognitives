@@ -58,8 +58,14 @@ export function generateMainTrials(): PosnerTrial[] {
       trials.push(makeTrial(id++, 'left',  null, 'catch', soa, false));
       trials.push(makeTrial(id++, 'right', null, 'catch', soa, false));
     }
+    // 10 exo_invalid: 5 red-rect-left/target-right + 5 red-rect-right/target-left
+    // (red rectangle appears on OPPOSITE side of upcoming target)
+    for (let i = 0; i < 5; i++) {
+      trials.push(makeTrial(id++, 'left',  'right', 'exo_invalid', soa, false));
+      trials.push(makeTrial(id++, 'right', 'left',  'exo_invalid', soa, false));
+    }
   }
 
-  // Shuffle all 112 together and re-index
+  // Shuffle all 132 together and re-index
   return shuffle(trials).map((t, i) => ({ ...t, id: i }));
 }

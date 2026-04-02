@@ -1,4 +1,5 @@
-export type SearchType = 'feature' | 'conjunction';
+export type TargetSetSize = 1 | 2 | 4 | 8;
+export type DistractorSetSize = 1 | 2 | 4 | 8;
 
 export interface SearchItem {
   x: number;
@@ -11,9 +12,11 @@ export interface SearchItem {
 
 export interface VisualSearchTrial {
   id: number;
-  searchType: SearchType;
-  setSize: 8 | 16 | 24;
+  targetSetSize: TargetSetSize;
+  distractorSetSize: DistractorSetSize;
   targetPresent: boolean;
+  targetColor: 'red' | 'blue';
+  distractorColor: 'red' | 'blue';
   items: SearchItem[];
   isPractice: boolean;
 }
@@ -23,12 +26,14 @@ export interface VisualSearchResult {
   session_id: string;
   participant_name?: string;
   trial_number: number;
-  block: string;
-  set_size: number;
+  target_set_size: number;
+  distractor_set_size: number;
   target_present: boolean;
+  target_color: string;
   response: string;
   correct: boolean;
   rt_ms: number;
+  target_distance_from_center: number | null;
   is_practice: boolean;
   created_at?: string;
 }

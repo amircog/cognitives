@@ -1,4 +1,4 @@
-export type Validity = 'valid' | 'invalid' | 'catch';
+export type Validity = 'valid' | 'invalid' | 'catch' | 'exo_invalid';
 export type CueDirection = 'left' | 'right';
 export type TargetSide = 'left' | 'right' | null;
 

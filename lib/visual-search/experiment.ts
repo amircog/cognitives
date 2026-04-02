@@ -1,6 +1,9 @@
-import { VisualSearchTrial, SearchItem, SearchType } from '@/types/visual-search';
+import { VisualSearchTrial, SearchItem, TargetSetSize, DistractorSetSize } from '@/types/visual-search';
 
 const ROTATIONS: Array<0 | 90 | 180 | 270> = [0, 90, 180, 270];
+const SET_SIZES: TargetSetSize[] = [1, 2, 4, 8];
+const DISPLAY_W = 600;
+const DISPLAY_H = 600;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -15,16 +18,16 @@ function randRotation(): 0 | 90 | 180 | 270 {
   return ROTATIONS[Math.floor(Math.random() * 4)];
 }
 
-/** Generate random positions that don't overlap too much. Falls back to grid. */
+/** Generate random non-overlapping positions; falls back to grid. */
 export function generatePositions(
   count: number,
   w: number,
   h: number,
   minDist: number,
 ): Array<{ x: number; y: number }> {
-  const margin = 30;
+  const margin = 36;
   const positions: Array<{ x: number; y: number }> = [];
-  const maxAttempts = count * 40;
+  const maxAttempts = count * 60;
   let attempts = 0;
 
   while (positions.length < count && attempts < maxAttempts) {
@@ -34,18 +37,16 @@ export function generatePositions(
     const tooClose = positions.some(
       (p) => Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2) < minDist,
     );
-    if (!tooClose) {
-      positions.push({ x, y });
-    }
+    if (!tooClose) positions.push({ x, y });
   }
 
-  // Grid fallback for remaining positions
+  // Grid fallback
   if (positions.length < count) {
     const cols = Math.ceil(Math.sqrt(count));
     const rows = Math.ceil(count / cols);
     const cellW = (w - 2 * margin) / cols;
     const cellH = (h - 2 * margin) / rows;
-    let idx = 0;
+    let idx = positions.length;
     outer: for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (positions.length >= count) break outer;
@@ -58,7 +59,6 @@ export function generatePositions(
         idx++;
       }
     }
-    // Last resort: just fill without distance check
     while (positions.length < count) {
       const c = idx % cols;
       const r = Math.floor(idx / cols) % rows;
@@ -73,53 +73,49 @@ export function generatePositions(
   return positions.slice(0, count);
 }
 
-/** Build the items array for one trial. */
+/**
+ * Build items for one trial.
+ *
+ * Design: conjunction search
+ *   Target-present:  1 targetColor-T + (targetSetSize-1) targetColor-L's  + distractorSetSize distractorColor-T's
+ *   Target-absent:   targetSetSize targetColor-L's                         + distractorSetSize distractorColor-T's
+ *
+ * Participants must find the T in their assigned target color.
+ */
 export function generateItems(
-  searchType: SearchType,
-  setSize: 8 | 16 | 24,
+  targetSetSize: TargetSetSize,
+  distractorSetSize: DistractorSetSize,
   targetPresent: boolean,
+  targetColor: 'red' | 'blue',
+  distractorColor: 'red' | 'blue',
 ): SearchItem[] {
-  const W = 600;
-  const H = 600;
-  const minDist = 60;
-
-  const positions = shuffle(generatePositions(setSize, W, H, minDist));
+  const total = targetSetSize + distractorSetSize;
+  const minDist = total <= 4 ? 90 : total <= 8 ? 70 : 55;
+  const positions = shuffle(generatePositions(total, DISPLAY_W, DISPLAY_H, minDist));
   const items: SearchItem[] = [];
-
   let posIdx = 0;
 
-  // Place target if present
   if (targetPresent) {
+    // Place the target T
     const { x, y } = positions[posIdx++];
-    items.push({ x, y, letter: 'T', color: 'red', rotation: 0, isTarget: true });
-  }
-
-  const distractorCount = setSize - (targetPresent ? 1 : 0);
-
-  if (searchType === 'feature') {
-    // Feature distractors: all blue T's, random rotation
-    for (let i = 0; i < distractorCount; i++) {
-      const { x, y } = positions[posIdx++];
-      items.push({ x, y, letter: 'T', color: 'blue', rotation: randRotation(), isTarget: false });
+    items.push({ x, y, letter: 'T', color: targetColor, rotation: 0, isTarget: true });
+    // Place (targetSetSize - 1) same-color L's
+    for (let i = 0; i < targetSetSize - 1; i++) {
+      const { x: lx, y: ly } = positions[posIdx++];
+      items.push({ x: lx, y: ly, letter: 'L', color: targetColor, rotation: randRotation(), isTarget: false });
     }
   } else {
-    // Conjunction distractors: half red L's + half blue T's, random rotation
-    const half = Math.floor(distractorCount / 2);
-    const remainder = distractorCount - 2 * half; // 0 or 1 when odd
+    // Place targetSetSize L's in target color (no T)
+    for (let i = 0; i < targetSetSize; i++) {
+      const { x, y } = positions[posIdx++];
+      items.push({ x, y, letter: 'L', color: targetColor, rotation: randRotation(), isTarget: false });
+    }
+  }
 
-    for (let i = 0; i < half; i++) {
-      const { x, y } = positions[posIdx++];
-      items.push({ x, y, letter: 'L', color: 'red', rotation: randRotation(), isTarget: false });
-    }
-    for (let i = 0; i < half; i++) {
-      const { x, y } = positions[posIdx++];
-      items.push({ x, y, letter: 'T', color: 'blue', rotation: randRotation(), isTarget: false });
-    }
-    // Handle odd remainder with a red L
-    for (let i = 0; i < remainder; i++) {
-      const { x, y } = positions[posIdx++];
-      items.push({ x, y, letter: 'L', color: 'red', rotation: randRotation(), isTarget: false });
-    }
+  // Place distractorSetSize T's in distractor color
+  for (let i = 0; i < distractorSetSize; i++) {
+    const { x, y } = positions[posIdx++];
+    items.push({ x, y, letter: 'T', color: distractorColor, rotation: randRotation(), isTarget: false });
   }
 
   return items;
@@ -127,51 +123,54 @@ export function generateItems(
 
 function makeTrial(
   id: number,
-  searchType: SearchType,
-  setSize: 8 | 16 | 24,
+  targetSetSize: TargetSetSize,
+  distractorSetSize: DistractorSetSize,
   targetPresent: boolean,
+  targetColor: 'red' | 'blue',
   isPractice: boolean,
 ): VisualSearchTrial {
+  const distractorColor = targetColor === 'red' ? 'blue' : 'red';
   return {
     id,
-    searchType,
-    setSize,
+    targetSetSize,
+    distractorSetSize,
     targetPresent,
-    items: generateItems(searchType, setSize, targetPresent),
+    targetColor,
+    distractorColor,
+    items: generateItems(targetSetSize, distractorSetSize, targetPresent, targetColor, distractorColor),
     isPractice,
   };
 }
 
-/** 12 practice trials: 1 per cell (2 types × 3 sizes × 2 presence). */
-export function generatePracticeTrials(): VisualSearchTrial[] {
+/** 8 practice trials sampling varied combinations. */
+export function generatePracticeTrials(targetColor: 'red' | 'blue'): VisualSearchTrial[] {
+  const specs: Array<[TargetSetSize, DistractorSetSize, boolean]> = [
+    [1, 1, true], [1, 4, false],
+    [2, 2, true], [2, 8, false],
+    [4, 4, true], [8, 2, false],
+    [4, 8, true], [8, 1, false],
+  ];
+  const trials = specs.map(([tss, dss, present], i) =>
+    makeTrial(i, tss, dss, present, targetColor, true),
+  );
+  return shuffle(trials).map((t, i) => ({ ...t, id: i }));
+}
+
+/**
+ * 128 main trials: 4×4 combinations × 2 (present/absent) × 4 reps.
+ * Fully shuffled.
+ */
+export function generateMainTrials(targetColor: 'red' | 'blue'): VisualSearchTrial[] {
   const trials: VisualSearchTrial[] = [];
   let id = 0;
-  for (const st of ['feature', 'conjunction'] as SearchType[]) {
-    for (const sz of [8, 16, 24] as const) {
+  for (const tss of SET_SIZES) {
+    for (const dss of SET_SIZES as DistractorSetSize[]) {
       for (const present of [true, false]) {
-        trials.push(makeTrial(id++, st, sz, present, true));
+        for (let rep = 0; rep < 4; rep++) {
+          trials.push(makeTrial(id++, tss, dss, present, targetColor, false));
+        }
       }
     }
   }
   return shuffle(trials).map((t, i) => ({ ...t, id: i }));
-}
-
-/** 60 block trials: 10 reps × 3 set sizes × 2 presence. */
-export function generateBlockTrials(searchType: SearchType): VisualSearchTrial[] {
-  const trials: VisualSearchTrial[] = [];
-  let id = 0;
-  for (const sz of [8, 16, 24] as const) {
-    for (let rep = 0; rep < 10; rep++) {
-      trials.push(makeTrial(id++, searchType, sz, true, false));
-      trials.push(makeTrial(id++, searchType, sz, false, false));
-    }
-  }
-  return shuffle(trials).map((t, i) => ({ ...t, id: i }));
-}
-
-/** Randomly returns block order. */
-export function getBlockOrder(): ['feature', 'conjunction'] | ['conjunction', 'feature'] {
-  return Math.random() < 0.5
-    ? ['feature', 'conjunction']
-    : ['conjunction', 'feature'];
 }

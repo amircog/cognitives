@@ -1,14 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import { Search, ArrowRight } from 'lucide-react';
 
+const ITEM_COLOR: Record<string, string> = { red: '#ef4444', blue: '#3b82f6' };
+
 export default function VisualSearchIntroPage() {
   const router = useRouter();
   const [participantName, setParticipantName] = useState('');
+  const [targetColor, setTargetColor] = useState<'red' | 'blue'>('red');
+
+  // Assign and show target color before experiment starts
+  useEffect(() => {
+    let tc = sessionStorage.getItem('vs_target_color') as 'red' | 'blue' | null;
+    if (!tc) {
+      tc = Math.random() < 0.5 ? 'red' : 'blue';
+      sessionStorage.setItem('vs_target_color', tc);
+    }
+    setTargetColor(tc);
+  }, []);
 
   const handleStart = () => {
     const sessionId = uuidv4();
@@ -43,14 +56,14 @@ export default function VisualSearchIntroPage() {
           </h1>
         </div>
 
-        <p className="text-xl text-muted mb-8">אינטגרציית תכונות – תיאוריית טריסמן</p>
+        <p className="text-xl text-muted mb-8">חיפוש צירוף – אפקט גודל המערך</p>
 
         {/* Target example */}
         <div className="bg-card border border-border rounded-xl p-5 mb-6 flex items-center justify-center gap-6">
-          <span className="text-sm text-muted" dir="rtl">היעד שאתם מחפשים:</span>
+          <span className="text-sm text-muted" dir="rtl">היעד שלך:</span>
           <span
             style={{
-              color: '#ef4444',
+              color: ITEM_COLOR[targetColor],
               fontSize: 42,
               fontFamily: 'monospace',
               fontWeight: 'bold',
@@ -59,25 +72,26 @@ export default function VisualSearchIntroPage() {
           >
             T
           </span>
-          <span className="text-sm text-muted">(T אדומה)</span>
+          <span className="text-sm text-muted">
+            ({targetColor === 'red' ? 'T אדומה' : 'T כחולה'})
+          </span>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 mb-8 text-right" dir="rtl">
           <h2 className="text-lg font-semibold mb-4">הוראות</h2>
           <ol className="space-y-3 text-muted list-decimal list-inside">
-            <li>בניסוי זה תחפשו אות T אדומה בין אותיות אחרות על המסך.</li>
+            <li>בניסוי זה תחפשו את האות T בצבע שמוצג למעלה בין אותיות אחרות על המסך.</li>
             <li>
               לחצו{' '}
               <kbd className="px-2 py-0.5 bg-background rounded text-foreground text-sm font-mono">L</kbd>{' '}
-              אם T האדומה נמצאת על המסך.
+              או כפתור <strong className="text-foreground">נמצא</strong> אם T בצבע היעד נמצאת על המסך.
             </li>
             <li>
               לחצו{' '}
               <kbd className="px-2 py-0.5 bg-background rounded text-foreground text-sm font-mono">A</kbd>{' '}
-              אם T האדומה אינה נמצאת על המסך.
+              או כפתור <strong className="text-foreground">לא נמצא</strong> אם T בצבע היעד אינה נמצאת.
             </li>
             <li>נסו להיות מהירים ומדויקים ככל האפשר.</li>
-            <li>ישנן שתי מערכות ניסויים. בסוף תוצג הפסקה קצרה בין המערכות.</li>
           </ol>
 
           <div className="mt-6 pt-4 border-t border-border flex items-center justify-end gap-6 text-sm">
@@ -122,7 +136,7 @@ export default function VisualSearchIntroPage() {
         </motion.button>
 
         <p className="mt-6 text-sm text-muted" dir="rtl">
-          כ-7–10 דקות • 12 ניסיונות תרגול + 120 ניסיונות
+          כ-8–10 דקות • 8 ניסיונות תרגול + 128 ניסיונות
         </p>
       </motion.div>
     </main>

@@ -4,6 +4,7 @@ import { useEffect, useState, FormEvent, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ScatterChart, Scatter, ReferenceLine, LineChart, Line, Cell,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Target } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -20,6 +21,7 @@ interface AggStats {
   avgValidRT: number;
   avgInvalidRT: number;
   avgValidityEffect: number;
+  avgExoRT: number;
 }
 
 interface SessionStat {
@@ -27,7 +29,13 @@ interface SessionStat {
   participant_name: string;
   validRT: number;
   invalidRT: number;
+  exoRT: number;
   validityEffect: number;
+}
+
+interface TimePoint {
+  timePoint: number;
+  rt: number | null;
 }
 
 export default function PosnerTeacherPage() {
@@ -38,6 +46,7 @@ export default function PosnerTeacherPage() {
   const [error, setError] = useState<string | null>(null);
   const [aggStats, setAggStats] = useState<AggStats | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStat[]>([]);
+  const [exoTimeData, setExoTimeData] = useState<TimePoint[]>([]);
 
   useEffect(() => {
     if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
@@ -69,7 +78,6 @@ export default function PosnerTeacherPage() {
         .order('created_at', { ascending: true });
 
       if (fetchError) throw fetchError;
-
       if (!data || data.length === 0) {
         setError('No data available yet.');
         setLoading(false);
@@ -83,46 +91,65 @@ export default function PosnerTeacherPage() {
         bySession[r.session_id].push(r);
       });
 
+      type Row = { validity: string; response: string; rt_ms: number | null; trial_number: number; participant_name?: string };
+      const mean = (arr: Row[]) =>
+        arr.length > 0 ? arr.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / arr.length : 0;
+
       const sessions: SessionStat[] = [];
       Object.entries(bySession).forEach(([sid, rows]) => {
-        const validHits = rows.filter(
-          (r: { validity: string; response: string; rt_ms: number | null }) =>
-            r.validity === 'valid' && r.response === 'hit' && r.rt_ms != null,
-        );
-        const invalidHits = rows.filter(
-          (r: { validity: string; response: string; rt_ms: number | null }) =>
-            r.validity === 'invalid' && r.response === 'hit' && r.rt_ms != null,
-        );
-        const mean = (arr: { rt_ms: number | null }[]) =>
-          arr.length > 0 ? arr.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / arr.length : 0;
+        const validHits = (rows as Row[]).filter(r => r.validity === 'valid' && r.response === 'hit' && r.rt_ms != null);
+        const invalidHits = (rows as Row[]).filter(r => r.validity === 'invalid' && r.response === 'hit' && r.rt_ms != null);
+        const exoHits = (rows as Row[]).filter(r => r.validity === 'exo_invalid' && r.response === 'hit' && r.rt_ms != null);
 
         const vRT = Math.round(mean(validHits));
         const iRT = Math.round(mean(invalidHits));
+        const eRT = Math.round(mean(exoHits));
 
         sessions.push({
           session_id: sid,
-          participant_name: (rows[0] as { participant_name?: string }).participant_name ?? sid.slice(0, 8),
+          participant_name: (rows[0] as Row & { participant_name?: string }).participant_name ?? sid.slice(0, 8),
           validRT: vRT,
           invalidRT: iRT,
+          exoRT: eRT,
           validityEffect: iRT - vRT,
         });
       });
 
       setSessionStats(sessions);
 
-      // Aggregate
-      const validRTs = sessions.map((s) => s.validRT).filter((v) => v > 0);
-      const invalidRTs = sessions.map((s) => s.invalidRT).filter((v) => v > 0);
-      const effects = sessions.map((s) => s.validityEffect);
+      // Aggregate stats
       const avg = (arr: number[]) =>
         arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 
       setAggStats({
         totalParticipants: sessions.length,
-        avgValidRT: avg(validRTs),
-        avgInvalidRT: avg(invalidRTs),
-        avgValidityEffect: avg(effects),
+        avgValidRT: avg(sessions.map(s => s.validRT).filter(v => v > 0)),
+        avgInvalidRT: avg(sessions.map(s => s.invalidRT).filter(v => v > 0)),
+        avgExoRT: avg(sessions.map(s => s.exoRT).filter(v => v > 0)),
+        avgValidityEffect: avg(sessions.map(s => s.validityEffect)),
       });
+
+      // Exo_invalid RT over time (4 bins of 5 trials each)
+      type HitRow = Row;
+      const timePoints: TimePoint[] = [1, 2, 3, 4].map((tp) => {
+        const allRTs: number[] = [];
+        Object.values(bySession).forEach((rows) => {
+          const exoHits = (rows as HitRow[])
+            .filter(r => r.validity === 'exo_invalid' && r.response === 'hit' && r.rt_ms != null)
+            .sort((a, b) => a.trial_number - b.trial_number);
+          const start = (tp - 1) * 5;
+          const end = tp * 5;
+          exoHits.slice(start, end).forEach(r => allRTs.push(r.rt_ms!));
+        });
+        return {
+          timePoint: tp,
+          rt: allRTs.length > 0
+            ? Math.round(allRTs.reduce((s, v) => s + v, 0) / allRTs.length)
+            : null,
+        };
+      });
+      setExoTimeData(timePoints);
+
     } catch (err) {
       console.error(err);
       setError('Failed to load data.');
@@ -135,6 +162,7 @@ export default function PosnerTeacherPage() {
     if (authed) fetchData();
   }, [authed, fetchData]);
 
+  // ── Auth screen ──────────────────────────────────────────────────────────
   if (!authed) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -185,21 +213,25 @@ export default function PosnerTeacherPage() {
     );
   }
 
-  const chartData = [
-    { name: 'Valid', rt: aggStats?.avgValidRT ?? 0 },
-    { name: 'Invalid', rt: aggStats?.avgInvalidRT ?? 0 },
+  // Chart 1: RT by validity (3 bars)
+  const rtBarData = [
+    { name: 'Valid', rt: aggStats?.avgValidRT ?? 0, fill: '#34d399' },
+    { name: 'Invalid', rt: aggStats?.avgInvalidRT ?? 0, fill: '#fb7185' },
+    { name: 'Exogenous', rt: aggStats?.avgExoRT ?? 0, fill: '#f97316' },
   ];
 
-  const participantChartData = sessionStats.map((s) => ({
-    name: s.participant_name.length > 10 ? s.participant_name.slice(0, 10) + '…' : s.participant_name,
-    effect: s.validityEffect,
+  // Chart 2: scatter dots for validity effect per participant
+  const dotData = sessionStats.map((s, i) => ({
+    x: ((i * 7) % 11 - 5) * 0.08, // deterministic jitter
+    y: s.validityEffect,
+    label: s.participant_name,
   }));
 
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <GraduationCap className="w-10 h-10 text-amber-400" />
             <div>
@@ -222,10 +254,7 @@ export default function PosnerTeacherPage() {
         {error && (
           <div className="bg-card border border-yellow-500/50 rounded-xl p-8 mb-8 text-center">
             <p className="text-yellow-400 mb-4">{error}</p>
-            <button
-              onClick={fetchData}
-              className="px-4 py-2 bg-amber-400 text-zinc-900 font-semibold rounded-lg hover:bg-amber-300"
-            >
+            <button onClick={fetchData} className="px-4 py-2 bg-amber-400 text-zinc-900 font-semibold rounded-lg hover:bg-amber-300">
               Retry
             </button>
           </div>
@@ -253,11 +282,14 @@ export default function PosnerTeacherPage() {
               </div>
             </div>
 
-            {/* Aggregate RT chart */}
+            {/* Chart 1: RT by validity (Valid / Invalid / Exogenous) */}
             <div className="bg-card border border-border rounded-xl p-6 mb-6">
-              <h2 className="text-xl font-bold mb-4">Average RT by Validity (Aggregate)</h2>
+              <h2 className="text-xl font-bold mb-1">Average RT by Cue Type</h2>
+              <p className="text-sm text-muted mb-4">
+                Exogenous = misleading peripheral rectangle (always wrong side)
+              </p>
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={chartData} margin={{ left: 10, bottom: 5 }}>
+                <BarChart data={rtBarData} margin={{ left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
                   <XAxis dataKey="name" tick={{ fill: '#a1a1aa' }} />
                   <YAxis
@@ -268,34 +300,83 @@ export default function PosnerTeacherPage() {
                     contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
                     formatter={(v: any) => [`${v}ms`, 'Avg RT'] as any}
                   />
-                  <Bar dataKey="rt" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="rt" radius={[4, 4, 0, 0]}>
+                    {rtBarData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Per-participant validity effect */}
-            {participantChartData.length > 0 && (
-              <div className="bg-card border border-border rounded-xl p-6">
-                <h2 className="text-xl font-bold mb-4">Validity Effect per Participant</h2>
-                <ResponsiveContainer width="100%" height={Math.max(200, participantChartData.length * 30)}>
-                  <BarChart
-                    data={participantChartData}
-                    layout="vertical"
-                    margin={{ left: 80, right: 20, top: 5, bottom: 5 }}
-                  >
+            {/* Chart 2: Validity effect scatter (individual dots + y=0 line) */}
+            {sessionStats.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-6 mb-6">
+                <h2 className="text-xl font-bold mb-1">Validity Effect Distribution</h2>
+                <p className="text-sm text-muted mb-4">
+                  Each dot = one participant (Invalid RT − Valid RT). Dashed line = zero effect.
+                </p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
                     <XAxis
                       type="number"
-                      tick={{ fill: '#a1a1aa' }}
-                      label={{ value: 'Validity Effect (ms)', position: 'insideBottom', offset: -5, style: { fill: '#a1a1aa', fontSize: 11 } }}
+                      dataKey="x"
+                      domain={[-0.6, 0.6]}
+                      tick={false}
+                      axisLine={false}
+                      label={{ value: 'Participants (jittered)', position: 'insideBottom', offset: -10, style: { fill: '#a1a1aa', fontSize: 11 } }}
                     />
-                    <YAxis dataKey="name" type="category" tick={{ fill: '#a1a1aa', fontSize: 11 }} width={80} />
+                    <YAxis
+                      type="number"
+                      dataKey="y"
+                      tick={{ fill: '#a1a1aa' }}
+                      label={{ value: 'Validity Effect (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 11 } }}
+                    />
+                    <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="6 4" strokeWidth={2} />
                     <Tooltip
                       contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                      formatter={(v: any) => [`${v}ms`, 'Effect'] as any}
+                      formatter={(v: any, name: any) => [name === 'x' ? undefined : `${v}ms`, name === 'x' ? '' : 'Effect'] as any}
+                      cursor={false}
                     />
-                    <Bar dataKey="effect" fill="#fbbf24" radius={[0, 4, 4, 0]} />
-                  </BarChart>
+                    <Scatter data={dotData} fill="#fbbf24" opacity={0.85} r={6} />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Chart 3: Exo RT across 4 time points */}
+            {exoTimeData.some(d => d.rt != null) && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h2 className="text-xl font-bold mb-1">Exogenous Cue RT Over Time</h2>
+                <p className="text-sm text-muted mb-4">
+                  Mean RT for misleading-rectangle trials in 4 bins of 5 trials each. Decreasing RT = adaptation to invalid cue.
+                </p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={exoTimeData} margin={{ left: 10, right: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                    <XAxis
+                      dataKey="timePoint"
+                      tick={{ fill: '#a1a1aa' }}
+                      label={{ value: 'Time Point (5 trials each)', position: 'insideBottom', offset: -10, style: { fill: '#a1a1aa', fontSize: 11 } }}
+                    />
+                    <YAxis
+                      tick={{ fill: '#a1a1aa' }}
+                      label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 12 } }}
+                    />
+                    <Tooltip
+                      contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
+                      formatter={(v: any) => (v != null ? [`${v}ms`, 'Exo RT'] : ['N/A', 'Exo RT']) as any}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="rt"
+                      stroke="#f97316"
+                      strokeWidth={2.5}
+                      dot={{ r: 6, fill: '#f97316' }}
+                      connectNulls
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
