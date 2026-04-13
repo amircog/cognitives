@@ -36,19 +36,19 @@ const ScatterTooltip = ({ active, payload }: { active?: boolean; payload?: { pay
   );
 };
 
+// Diagonal reference line using chart's offset (plot area rect provided by Recharts Customized)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DiagonalLine = (props: any) => {
-  const { xAxisMap, yAxisMap, x1, y1, x2, y2 } = props as {
-    xAxisMap: Record<string, { scale: (v: number) => number }>;
-    yAxisMap: Record<string, { scale: (v: number) => number }>;
-    x1: number; y1: number; x2: number; y2: number;
-  };
-  if (!xAxisMap || !yAxisMap) return null;
-  const xs = Object.values(xAxisMap)[0]?.scale;
-  const ys = Object.values(yAxisMap)[0]?.scale;
-  if (!xs || !ys) return null;
-  return <line x1={xs(x1)} y1={ys(y1)} x2={xs(x2)} y2={ys(y2)}
-    stroke="#6b7280" strokeDasharray="6 4" strokeWidth={1.5} />;
+  const offset = props?.offset as { left: number; top: number; width: number; height: number } | undefined;
+  if (!offset) return null;
+  const { left, top, width, height } = offset;
+  return (
+    <line
+      x1={left}          y1={top + height}
+      x2={left + width}  y2={top}
+      stroke="#6b7280" strokeDasharray="6 4" strokeWidth={1.5}
+    />
+  );
 };
 
 const Dot = (props: { cx?: number; cy?: number }) => {
@@ -253,7 +253,7 @@ export default function TeacherPage() {
                       label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
                     <Tooltip contentStyle={BG} formatter={pctFmt} />
                     <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="4 3" />
-                    <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
+                    <Legend verticalAlign="top" wrapperStyle={{ color: '#9ca3af', fontSize: 11, paddingBottom: 6 }} />
                     <Line type="monotone" dataKey="circles" name="Circles" stroke="#f97316" strokeWidth={2.5}
                       dot={{ r: 5, fill: '#f97316' }} connectNulls />
                     <Line type="monotone" dataKey="lines" name="Lines" stroke="#a78bfa" strokeWidth={2.5}
@@ -273,7 +273,7 @@ export default function TeacherPage() {
                     <YAxis domain={[0, 100]} tick={TICK}
                       label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
                     <Tooltip contentStyle={BG} formatter={pctFmt} />
-                    <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
+                    <Legend verticalAlign="top" wrapperStyle={{ color: '#9ca3af', fontSize: 11, paddingBottom: 6 }} />
                     <Line type="monotone" dataKey="circles" name="Circles" stroke="#34d399" strokeWidth={2.5}
                       dot={{ r: 5, fill: '#34d399' }} connectNulls />
                     <Line type="monotone" dataKey="lines" name="Lines" stroke="#60a5fa" strokeWidth={2.5}
@@ -336,7 +336,7 @@ export default function TeacherPage() {
                     />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={<ScatterTooltip />} />
-                    <Customized component={DiagonalLine} x1={0} y1={0} x2={100} y2={100} />
+                    <Customized component={DiagonalLine} />
                     <Scatter data={data.chart5} shape={<Dot />}>
                       {data.chart5.map((_, i) => <Cell key={i} fill="#f97316" />)}
                     </Scatter>
