@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ErrorBar, Legend,
-  ScatterChart, Scatter, ZAxis, Cell, Customized,
+  ScatterChart, Scatter, ZAxis, Cell,
 } from 'recharts';
 import { Eye, Download, Home, RefreshCw } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -36,20 +36,6 @@ const ScatterTooltip = ({ active, payload }: { active?: boolean; payload?: { pay
   );
 };
 
-// Diagonal reference line using chart's offset (plot area rect provided by Recharts Customized)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const DiagonalLine = (props: any) => {
-  const offset = props?.offset as { left: number; top: number; width: number; height: number } | undefined;
-  if (!offset) return null;
-  const { left, top, width, height } = offset;
-  return (
-    <line
-      x1={left}          y1={top + height}
-      x2={left + width}  y2={top}
-      stroke="#6b7280" strokeDasharray="6 4" strokeWidth={1.5}
-    />
-  );
-};
 
 const Dot = (props: { cx?: number; cy?: number }) => {
   const { cx = 0, cy = 0 } = props;
@@ -336,7 +322,14 @@ export default function TeacherPage() {
                     />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={<ScatterTooltip />} />
-                    <Customized component={DiagonalLine} />
+                    {/* Diagonal y=x drawn as a two-point Scatter with line and invisible shape */}
+                    <Scatter
+                      data={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
+                      line={{ stroke: '#6b7280', strokeWidth: 1.5, strokeDasharray: '6 4' }}
+                      shape={() => null}
+                      legendType="none"
+                      isAnimationActive={false}
+                    />
                     <Scatter data={data.chart5} shape={<Dot />}>
                       {data.chart5.map((_, i) => <Cell key={i} fill="#f97316" />)}
                     </Scatter>

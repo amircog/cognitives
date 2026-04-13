@@ -77,33 +77,12 @@ interface EnsembleFeedbackProps {
 }
 
 export function EnsembleFeedback({ stimulusType, trueValue, responseValue, language, onNext }: EnsembleFeedbackProps) {
-  const absError = Math.abs(responseValue - trueValue);
-  const range    = VALUE_RANGES[stimulusType].max - VALUE_RANGES[stimulusType].min;
-  const frac     = absError / range;
-  // Tiers: ≤5% of range → Excellent, ≤20% → Good, >20% → Keep practicing
-  const tier = frac <= 0.05 ? 'excellent' : frac <= 0.20 ? 'good' : 'miss';
-
-  const t = language === 'he' ? {
-    excellent: 'מצוין! 🎯', good: 'קרוב!', miss: 'נסה שוב',
-    error: `שגיאה: ${absError.toFixed(1)}`,
-    yourAnswer: 'התשובה שלך', trueValue: 'ערך אמיתי',
-    next: 'ניסוי הבא',
-  } : {
-    excellent: 'Excellent! 🎯', good: 'Close!', miss: 'Not quite',
-    error: `Error: ${absError.toFixed(1)}`,
-    yourAnswer: 'Your answer', trueValue: 'True value',
-    next: 'Next Trial',
-  };
-
-  const color = tier === 'excellent' ? 'text-green-400' : tier === 'good' ? 'text-yellow-400' : 'text-red-400';
-  const label = tier === 'excellent' ? t.excellent : tier === 'good' ? t.good : t.miss;
+  const t = language === 'he'
+    ? { yourAnswer: 'התשובה שלך', trueValue: 'ערך אמיתי', next: 'ניסוי הבא' }
+    : { yourAnswer: 'Your answer', trueValue: 'True value', next: 'Next Trial' };
 
   return (
     <div className={`flex flex-col items-center gap-5 ${language === 'he' ? 'rtl' : 'ltr'}`}>
-      <div className={`text-2xl font-bold ${color}`}>
-        {label}
-      </div>
-      <div className="text-orange-300 text-base">{t.error}</div>
       <div className="flex gap-6 items-center">
         <div className="flex flex-col items-center gap-2">
           <p className="text-gray-400 text-xs">{t.yourAnswer}</p>
