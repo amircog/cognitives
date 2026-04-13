@@ -2,81 +2,72 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart2 } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 export default function ThanksPage() {
   const [language, setLanguage] = useState<'en' | 'he'>('he');
+  const [recStats, setRecStats] = useState<{ correct: number; total: number } | null>(null);
 
   useEffect(() => {
     const lang = sessionStorage.getItem('ss_language') as 'en' | 'he' | null;
     if (lang) setLanguage(lang);
+
+    const raw = sessionStorage.getItem('ss_main_results');
+    if (raw) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const results: any[] = JSON.parse(raw);
+        const recResults = results.filter(r => r.trial_type === 'recognition');
+        if (recResults.length > 0) {
+          setRecStats({
+            correct: recResults.filter(r => r.is_correct).length,
+            total:   recResults.length,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    }
   }, []);
 
-  const content = {
-    he: {
-      title: '!תודה רבה על השתתפותך',
-      subtitle: 'הניסוי הסתיים. תוצאותיך נשמרו.',
-      scienceTitle: 'מה חקרנו?',
-      science: [
-        'ניסוי זה חוקר תפיסת אנסמבל — יכולת המוח לחלץ סטטיסטיקות של קבוצה ממבט קצר, מבלי לעקוב אחר כל פריט בנפרד.',
-        'אריאלי (2001) הראה שאנשים מדויקים מאוד בהערכת הגודל הממוצע של עיגולים, גם כשהם אינם זוכרים עיגולים בודדים.',
-        'צ׳ונג וטרייסמן (2003): תפיסת האנסמבל מהירה ואוטומטית — היא אינה דורשת קשב מכוון לכל פריט.',
-        'אלוורז (2011): האנסמבל מיוצג בזיכרון העבודה כיחידה אחת, ולא כרשימה של פריטים.',
-        'הממצא הצפוי: דיוק גבוה בסטטיסטיקות הקבוצה — אך זיהוי פריטים בודדים קרוב לסיכוי גרידא.',
-      ],
-    },
-    en: {
-      title: 'Thank You!',
-      subtitle: 'The experiment is complete. Your results have been saved.',
-      scienceTitle: 'What did we study?',
-      science: [
-        'This experiment investigates ensemble perception — the brain\'s ability to extract group statistics from a brief glimpse, without tracking each individual item.',
-        'Ariely (2001): people are highly accurate at estimating the mean size of circles, even when they cannot recall individual circles.',
-        'Chong & Treisman (2003): ensemble perception is fast and automatic — it does not require focused attention to individual items.',
-        'Alvarez (2011): ensembles are represented in working memory as a single unit, not as a list of items.',
-        'The expected finding: high accuracy on group statistics — but near-chance performance on individual item recognition.',
-      ],
-    },
+  const isHe = language === 'he';
+
+  const t = isHe ? {
+    title:   '!תודה רבה',
+    recLabel: 'דיוק במשימת הזיהוי',
+    outOf:   (c: number, n: number, pct: string) => `${c} מתוך ${n} (${pct}%)`,
+  } : {
+    title:   'Thank You!',
+    recLabel: 'Recognition task accuracy',
+    outOf:   (c: number, n: number, pct: string) => `${c} / ${n} correct (${pct}%)`,
   };
 
-  const t = content[language];
+  const pct = recStats
+    ? ((recStats.correct / recStats.total) * 100).toFixed(1)
+    : null;
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 ${language === 'he' ? 'rtl' : 'ltr'}`}
+      className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4"
+      dir={isHe ? 'rtl' : 'ltr'}
     >
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="text-center flex flex-col items-center gap-6"
+      >
+        <CheckCircle className="w-20 h-20 text-green-400" strokeWidth={1.5} />
 
-        {/* Big thank-you */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <div className="text-7xl mb-6">🎉</div>
-          <h1 className="text-5xl font-extrabold text-gray-900 mb-3">{t.title}</h1>
-          <p className="text-lg text-orange-600 font-medium">{t.subtitle}</p>
-        </motion.div>
+        <h1 className="text-4xl font-extrabold text-white">{t.title}</h1>
 
-        {/* Science card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl shadow-xl p-8"
-        >
-          <h2 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-orange-500 shrink-0" />
-            {t.scienceTitle}
-          </h2>
-          <ul className="space-y-4">
-            {t.science.map((s, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="text-orange-400 font-bold mt-0.5 shrink-0">•</span>
-                <span className="text-gray-700 text-sm leading-relaxed">{s}</span>
-              </li>
-            ))}
-          </ul>
-        </motion.div>
-
-      </div>
+        {recStats && pct && (
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl px-8 py-5 flex flex-col items-center gap-1">
+            <p className="text-gray-400 text-sm">{t.recLabel}</p>
+            <p className="text-2xl font-bold text-orange-400">
+              {t.outOf(recStats.correct, recStats.total, pct)}
+            </p>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }

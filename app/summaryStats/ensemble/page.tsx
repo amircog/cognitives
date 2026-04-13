@@ -10,12 +10,11 @@ import {
   DISPLAY_DURATION_MS,
   BLANK_DURATION_MS,
   FIXATION_DURATION_MS,
-  TWO_AFC_LABELS,
   RECOGNITION_LABEL,
 } from '@/lib/summary-stats/stimuli';
 import {
-  Trial, EnsembleTrial, RecognitionTrial, TwoAFCTrial,
-  EnsembleResult, RecognitionResult, TwoAFCResult, TrialResult,
+  Trial, EnsembleTrial, RecognitionTrial,
+  EnsembleResult, RecognitionResult, TrialResult,
 } from '@/types/summary-stats';
 import { getSupabase } from '@/lib/supabase';
 
@@ -49,7 +48,6 @@ export default function MainExperimentPage() {
   const isHe = language === 'he';
   const currentTrial = trials[currentIndex] as Trial | undefined;
 
-  // Timer-driven phase transitions
   useEffect(() => {
     if (!currentTrial || phase === 'intro' || phase === 'question' || phase === 'done') return;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -59,10 +57,7 @@ export default function MainExperimentPage() {
     } else if (phase === 'array') {
       timerRef.current = setTimeout(() => setPhase('blank'), DISPLAY_DURATION_MS);
     } else if (phase === 'blank') {
-      timerRef.current = setTimeout(() => {
-        setResponseStart(Date.now());
-        setPhase('question');
-      }, BLANK_DURATION_MS);
+      timerRef.current = setTimeout(() => { setResponseStart(Date.now()); setPhase('question'); }, BLANK_DURATION_MS);
     }
 
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
@@ -88,12 +83,9 @@ export default function MainExperimentPage() {
           if (r.trial_type === 'ensemble') {
             const e = r as EnsembleResult;
             return { ...base, stat_type: e.stat_type, n_items: e.n_items, true_value: e.true_value, response_value: e.response_value, signed_error: e.signed_error, absolute_error: e.absolute_error, is_practice: e.is_practice };
-          } else if (r.trial_type === 'recognition') {
+          } else {
             const rc = r as RecognitionResult;
             return { ...base, n_items: rc.n_items, probe_value: rc.probe_value, probe_is_target: rc.probe_is_target, probe_type: rc.probe_type, response_yes: rc.response_yes, is_correct: rc.is_correct };
-          } else {
-            const f = r as TwoAFCResult;
-            return { ...base, n_items: f.n_items, true_value: f.true_value, foil_value: f.foil_value, foil_type: f.foil_type, correct_is_a: f.correct_is_a, chose_a: f.chose_a, is_correct: f.is_correct };
           }
         });
         await supabase.from('summary_stats_results').insert(rows);
@@ -108,7 +100,6 @@ export default function MainExperimentPage() {
     }
   }, [results, currentIndex]);
 
-  // Response handlers
   const handleEnsembleResponse = useCallback((value: number) => {
     if (!currentTrial || currentTrial.type !== 'ensemble') return;
     const trial = currentTrial as EnsembleTrial;
@@ -138,30 +129,12 @@ export default function MainExperimentPage() {
     });
   }, [currentTrial, responseStart, sessionId, participantName, currentIndex, advanceTrial]);
 
-  const handle2AFCResponse = useCallback((choseA: boolean) => {
-    if (!currentTrial || currentTrial.type !== '2afc') return;
-    const trial = currentTrial as TwoAFCTrial;
-    const rt = Date.now() - responseStart;
-    advanceTrial({
-      session_id: sessionId, participant_name: participantName,
-      trial_type: '2afc', trial_number: currentIndex + 1,
-      stimulus_type: trial.stimulusType, n_items: trial.nItems,
-      true_value: trial.trueValue, foil_value: trial.foilValue,
-      foil_type: trial.foilType, correct_is_a: trial.correctIsA,
-      chose_a: choseA, is_correct: choseA === trial.correctIsA, reaction_time_ms: rt,
-    });
-  }, [currentTrial, responseStart, sessionId, participantName, currentIndex, advanceTrial]);
-
   const progress = (currentIndex / TOTAL_TRIALS) * 100;
-  const afc = currentTrial?.type === '2afc' ? (currentTrial as TwoAFCTrial) : null;
-  const optAValue = afc ? (afc.correctIsA ? afc.trueValue : afc.foilValue) : 0;
-  const optBValue = afc ? (afc.correctIsA ? afc.foilValue : afc.trueValue) : 0;
 
   const t = {
     introTitle:  isHe ? 'הניסוי הראשי'   : 'Main Experiment',
     startBtn:    isHe ? 'התחל'            : 'Begin',
     probeQ:      RECOGNITION_LABEL[language],
-    afcQ:        currentTrial?.type === '2afc' ? TWO_AFC_LABELS[currentTrial.stimulusType][language] : '',
     yes:         isHe ? 'כן' : 'Yes',
     no:          isHe ? 'לא' : 'No',
     doneTitle:   isHe ? '!סיימת'          : 'Done!',
@@ -191,7 +164,6 @@ export default function MainExperimentPage() {
       <div className="flex-1 flex flex-col items-center justify-center overflow-hidden px-4">
         <AnimatePresence mode="wait">
 
-          {/* INTRO */}
           {phase === 'intro' && (
             <motion.div key="intro"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -205,14 +177,12 @@ export default function MainExperimentPage() {
             </motion.div>
           )}
 
-          {/* FIXATION */}
           {phase === 'fixation' && (
             <motion.div key={`fix-${currentIndex}`}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="text-white text-6xl font-thin">+</motion.div>
           )}
 
-          {/* ARRAY */}
           {phase === 'array' && currentTrial && (
             <motion.div key={`arr-${currentIndex}`}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -222,7 +192,6 @@ export default function MainExperimentPage() {
             </motion.div>
           )}
 
-          {/* BLANK */}
           {phase === 'blank' && (
             <motion.div key="blank"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -265,30 +234,6 @@ export default function MainExperimentPage() {
                   onPointerDown={e => { e.preventDefault(); handleRecognitionResponse(false); }}
                   className="px-10 py-4 bg-red-800 hover:bg-red-700 text-white font-bold rounded-2xl text-xl touch-manipulation shadow-lg"
                 >{t.no}</button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* QUESTION — 2AFC */}
-          {phase === 'question' && currentTrial?.type === '2afc' && afc && (
-            <motion.div key={`q-f-${currentIndex}`}
-              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-5 px-2"
-            >
-              <p className="text-gray-200 text-lg font-semibold text-center">{t.afcQ}</p>
-              <div className="flex gap-5 items-end" style={{ direction: 'ltr' }}>
-                <button
-                  onPointerDown={e => { e.preventDefault(); handle2AFCResponse(true); }}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 active:scale-95 transition-all touch-manipulation"
-                >
-                  <SingleItemDisplay value={optAValue} stimulusType={afc.stimulusType} size={170} color="#f97316" />
-                </button>
-                <button
-                  onPointerDown={e => { e.preventDefault(); handle2AFCResponse(false); }}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 active:scale-95 transition-all touch-manipulation"
-                >
-                  <SingleItemDisplay value={optBValue} stimulusType={afc.stimulusType} size={170} color="#f97316" />
-                </button>
               </div>
             </motion.div>
           )}

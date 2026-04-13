@@ -5,15 +5,14 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, ErrorBar,
-  ScatterChart, Scatter, ZAxis, Cell, Customized, Legend,
+  ResponsiveContainer, ReferenceLine, ErrorBar, Legend,
+  ScatterChart, Scatter, ZAxis, Cell, Customized,
 } from 'recharts';
 import { Eye, Download, Home, RefreshCw } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { computeTeacherData, TeacherData, ScatterPoint } from '@/lib/summary-stats/analysis';
 import { TrialResult } from '@/types/summary-stats';
 
-// SHA-256 hash (password = "zinfandel")
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 
 async function sha256(str: string): Promise<string> {
@@ -21,24 +20,22 @@ async function sha256(str: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const CHART_BG  = { background: '#1f2937', border: '1px solid #374151', borderRadius: 8 };
-const TICK_STYLE = { fill: '#9ca3af', fontSize: 11 };
-const LABEL_STYLE = { fill: '#9ca3af', fontSize: 11 };
+const BG   = { background: '#111827', border: '1px solid #374151', borderRadius: 6 };
+const TICK = { fill: '#9ca3af', fontSize: 11 };
+const LBL  = { fill: '#9ca3af', fontSize: 11 };
 
-// Per-participant scatter tooltip
 const ScatterTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: ScatterPoint }[] }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div style={CHART_BG} className="px-3 py-2 text-xs text-white shadow">
+    <div style={BG} className="px-3 py-2 text-xs text-white shadow">
       <p className="font-semibold">{d.name}</p>
       <p>Ensemble Acc: {d.x}%</p>
-      <p>Binary Acc: {d.y}%</p>
+      <p>Recognition Acc: {d.y}%</p>
     </div>
   );
 };
 
-// Diagonal reference line using recharts internal scales
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DiagonalLine = (props: any) => {
   const { xAxisMap, yAxisMap, x1, y1, x2, y2 } = props as {
@@ -50,24 +47,27 @@ const DiagonalLine = (props: any) => {
   const xs = Object.values(xAxisMap)[0]?.scale;
   const ys = Object.values(yAxisMap)[0]?.scale;
   if (!xs || !ys) return null;
-  return (
-    <line x1={xs(x1)} y1={ys(y1)} x2={xs(x2)} y2={ys(y2)}
-      stroke="#6b7280" strokeDasharray="6 4" strokeWidth={1.5} strokeLinecap="round" />
-  );
+  return <line x1={xs(x1)} y1={ys(y1)} x2={xs(x2)} y2={ys(y2)}
+    stroke="#6b7280" strokeDasharray="6 4" strokeWidth={1.5} />;
 };
 
-const CustomDot = (props: { cx?: number; cy?: number }) => {
+const Dot = (props: { cx?: number; cy?: number }) => {
   const { cx = 0, cy = 0 } = props;
   return <circle cx={cx} cy={cy} r={6} fill="#f97316" stroke="#fff" strokeWidth={1.5} opacity={0.85} />;
 };
+
+// Recharts tooltip formatter — use 'as any' to satisfy strict Formatter type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pctFmt = (v: any): any => v != null ? [`${Number(v).toFixed(1)}%`, ''] : ['', ''];
 
 export default function TeacherPage() {
   const router = useRouter();
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData]             = useState<TeacherData | null>(null);
+  const [error, setError]           = useState<string | null>(null);
 
-  // Password gate
+  // Auth
   const [authed, setAuthed]   = useState(false);
   const [pwInput, setPwInput] = useState('');
   const [pwError, setPwError] = useState(false);
@@ -78,8 +78,7 @@ export default function TeacherPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const hash = await sha256(pwInput);
-    if (hash === PW_HASH) {
+    if (await sha256(pwInput) === PW_HASH) {
       sessionStorage.setItem('ss_teacher_authed', '1');
       setAuthed(true);
     } else {
@@ -90,21 +89,27 @@ export default function TeacherPage() {
 
   const fetchData = useCallback(async () => {
     setRefreshing(true);
+    setError(null);
     try {
       const supabase = getSupabase();
-      if (!supabase) throw new Error('Supabase not available');
-      const { data: rows } = await supabase
+      if (!supabase) throw new Error('Supabase client not available. Check environment variables.');
+      const { data: rows, error: dbErr } = await supabase
         .from('summary_stats_results')
         .select('*')
         .order('created_at', { ascending: true });
 
+      if (dbErr) throw new Error(`Database error: ${dbErr.message}`);
+
       if (rows && rows.length > 0) {
-        setData(computeTeacherData(rows as TrialResult[]));
+        const result = computeTeacherData(rows as TrialResult[]);
+        setData(result);
       } else {
         setData(null);
       }
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('Teacher fetchData error:', e);
+      setError(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -122,8 +127,8 @@ export default function TeacherPage() {
       const headers = Object.keys(rows[0]).join(',');
       const csv = [headers, ...rows.map((r: Record<string, unknown>) => Object.values(r).join(','))].join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
       a.href = url; a.download = 'ensemble-data.csv'; a.click();
       URL.revokeObjectURL(url);
     } catch (e) { console.error(e); }
@@ -139,16 +144,14 @@ export default function TeacherPage() {
           <Eye className="w-10 h-10 text-orange-400" />
           <h1 className="text-xl font-bold text-white">Teacher Dashboard</h1>
           <form onSubmit={handleLogin} className="w-full flex flex-col gap-3">
-            <input
-              type="password" value={pwInput} autoFocus
+            <input type="password" value={pwInput} autoFocus
               onChange={e => { setPwInput(e.target.value); setPwError(false); }}
               placeholder="Password"
               className={`w-full px-4 py-3 rounded-xl border text-white bg-gray-800 outline-none transition-colors
                 ${pwError ? 'border-red-500' : 'border-gray-600 focus:border-orange-400'}`}
             />
             {pwError && <p className="text-red-400 text-sm text-center">Incorrect password</p>}
-            <button type="submit"
-              className="w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl transition-colors">
+            <button type="submit" className="w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl transition-colors">
               Enter
             </button>
           </form>
@@ -194,6 +197,14 @@ export default function TeacherPage() {
           </div>
         </div>
 
+        {/* Error state */}
+        {error && (
+          <div className="bg-red-900/40 border border-red-700 rounded-xl p-4 mb-6">
+            <p className="text-red-300 text-sm font-semibold mb-1">Error loading data</p>
+            <p className="text-red-400 text-xs font-mono">{error}</p>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-center text-gray-400 py-20 text-lg">Loading…</p>
         ) : !data || data.nParticipants === 0 ? (
@@ -201,44 +212,46 @@ export default function TeacherPage() {
         ) : (
           <div className="flex flex-col gap-6">
 
-            {/* ── Chart 1: 2AFC + Recognition accuracy by stimulus type ── */}
+            {/* ── Chart 1: Recognition & ensemble accuracy by stimulus type ── */}
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-              <h2 className="text-base font-bold mb-1">2AFC & Recognition Accuracy by Stimulus Type</h2>
-              <p className="text-xs text-gray-400 mb-4">Both tasks are binary choice; 50% = chance. Error bars = SEM.</p>
+              <h2 className="text-base font-bold mb-1">Overall Accuracy by Stimulus Type</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Recognition: binary (50% = chance). Ensemble: normalized 0–100% (higher = more precise). Error bars = SEM.
+              </p>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={data.chart1} margin={{ left: 10, bottom: 5 }} barCategoryGap="25%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="name" tick={TICK_STYLE} />
-                  <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                  <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v !== undefined ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
+                  <XAxis dataKey="name" tick={TICK} />
+                  <YAxis domain={[0, 100]} tick={TICK}
+                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
+                  <Tooltip contentStyle={BG} formatter={pctFmt} />
                   <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="6 3"
                     label={{ value: 'Chance (50%)', position: 'right', style: { fontSize: 10, fill: '#6b7280' } }} />
                   <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12 }} />
-                  <Bar dataKey="twoAFC" name="2AFC" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                    <ErrorBar dataKey="twoAFCSEM" width={4} strokeWidth={2} stroke="#1d4ed8" direction="y" />
-                  </Bar>
                   <Bar dataKey="recognition" name="Recognition" fill="#f97316" radius={[4, 4, 0, 0]}>
                     <ErrorBar dataKey="recognitionSEM" width={4} strokeWidth={2} stroke="#c2410c" direction="y" />
+                  </Bar>
+                  <Bar dataKey="ensemble" name="Mean Assessment" fill="#34d399" radius={[4, 4, 0, 0]}>
+                    <ErrorBar dataKey="ensembleSEM" width={4} strokeWidth={2} stroke="#059669" direction="y" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* ── Charts 2 & 3 side-by-side ── */}
+            {/* ── Charts 2 & 3: set-size effects ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              {/* Chart 2: 2AFC by set size */}
+              {/* Chart 2: Recognition × set size */}
               <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-                <h2 className="text-base font-bold mb-4">2AFC Accuracy × Set Size</h2>
-                <ResponsiveContainer width="100%" height={220}>
+                <h2 className="text-base font-bold mb-4">Recognition Accuracy × Set Size</h2>
+                <ResponsiveContainer width="100%" height={230}>
                   <LineChart data={data.chart2} margin={{ left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="setSize" tick={TICK_STYLE}
-                      label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: LABEL_STYLE }} />
-                    <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                    <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v != null ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
+                    <XAxis dataKey="setSize" tick={TICK}
+                      label={{ value: 'Set Size', position: 'insideBottom', offset: -12, style: LBL }} />
+                    <YAxis domain={[0, 100]} tick={TICK}
+                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
+                    <Tooltip contentStyle={BG} formatter={pctFmt} />
                     <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="4 3" />
                     <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
                     <Line type="monotone" dataKey="circles" name="Circles" stroke="#f97316" strokeWidth={2.5}
@@ -249,109 +262,63 @@ export default function TeacherPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Chart 3: Recognition by set size */}
+              {/* Chart 3: Ensemble × set size */}
               <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-                <h2 className="text-base font-bold mb-4">Recognition Accuracy × Set Size</h2>
-                <ResponsiveContainer width="100%" height={220}>
+                <h2 className="text-base font-bold mb-4">Mean Assessment Accuracy × Set Size</h2>
+                <ResponsiveContainer width="100%" height={230}>
                   <LineChart data={data.chart3} margin={{ left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="setSize" tick={TICK_STYLE}
-                      label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: LABEL_STYLE }} />
-                    <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                    <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v != null ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
-                    <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="4 3" />
+                    <XAxis dataKey="setSize" tick={TICK}
+                      label={{ value: 'Set Size', position: 'insideBottom', offset: -12, style: LBL }} />
+                    <YAxis domain={[0, 100]} tick={TICK}
+                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
+                    <Tooltip contentStyle={BG} formatter={pctFmt} />
                     <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
-                    <Line type="monotone" dataKey="circles" name="Circles" stroke="#f97316" strokeWidth={2.5}
-                      dot={{ r: 5, fill: '#f97316' }} connectNulls />
-                    <Line type="monotone" dataKey="lines" name="Lines" stroke="#a78bfa" strokeWidth={2.5}
-                      dot={{ r: 5, fill: '#a78bfa' }} connectNulls />
+                    <Line type="monotone" dataKey="circles" name="Circles" stroke="#34d399" strokeWidth={2.5}
+                      dot={{ r: 5, fill: '#34d399' }} connectNulls />
+                    <Line type="monotone" dataKey="lines" name="Lines" stroke="#60a5fa" strokeWidth={2.5}
+                      dot={{ r: 5, fill: '#60a5fa' }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* ── Chart 4: Ensemble accuracy by set size ── */}
+            {/* ── Chart 4: Recognition × probe type ── */}
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-              <h2 className="text-base font-bold mb-1">Mean Assessment Accuracy × Set Size</h2>
-              <p className="text-xs text-gray-400 mb-4">Normalized: 100% = perfect, 0% = maximum error (half the value range).</p>
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={data.chart4} margin={{ left: 10, bottom: 20 }}>
+              <h2 className="text-base font-bold mb-1">Recognition Accuracy × Probe Type</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Target = shown item; Foil-mean = exact set mean (not shown); Foil-non-mean = other non-member. 50% = chance.
+              </p>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={data.chart4} margin={{ left: 10, bottom: 5 }} barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="setSize" tick={TICK_STYLE}
-                    label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: LABEL_STYLE }} />
-                  <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                  <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v != null ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
+                  <XAxis dataKey="name" tick={TICK} />
+                  <YAxis domain={[0, 100]} tick={TICK}
+                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
+                  <Tooltip contentStyle={BG} formatter={pctFmt} />
+                  <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="6 3"
+                    label={{ value: 'Chance (50%)', position: 'right', style: { fontSize: 10, fill: '#6b7280' } }} />
                   <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
-                  <Line type="monotone" dataKey="circles" name="Circles" stroke="#34d399" strokeWidth={2.5}
-                    dot={{ r: 5, fill: '#34d399' }} connectNulls />
-                  <Line type="monotone" dataKey="lines" name="Lines" stroke="#60a5fa" strokeWidth={2.5}
-                    dot={{ r: 5, fill: '#60a5fa' }} connectNulls />
-                </LineChart>
+                  <Bar dataKey="target" name="Target" fill="#34d399" radius={[4, 4, 0, 0]}>
+                    <ErrorBar dataKey="targetSEM" width={4} strokeWidth={2} stroke="#059669" direction="y" />
+                  </Bar>
+                  <Bar dataKey="foil_mean" name="Foil (mean)" fill="#fb923c" radius={[4, 4, 0, 0]}>
+                    <ErrorBar dataKey="foil_meanSEM" width={4} strokeWidth={2} stroke="#c2410c" direction="y" />
+                  </Bar>
+                  <Bar dataKey="foil_nm" name="Foil (non-mean)" fill="#e879f9" radius={[4, 4, 0, 0]}>
+                    <ErrorBar dataKey="foil_nmSEM" width={4} strokeWidth={2} stroke="#a21caf" direction="y" />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* ── Charts 5 & 6 side-by-side ── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-              {/* Chart 5: 2AFC by foil type */}
-              <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-                <h2 className="text-base font-bold mb-1">2AFC Accuracy × Foil Type</h2>
-                <p className="text-xs text-gray-400 mb-4">Mean foil = exact set mean; Non-mean = other non-member.</p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={data.chart5} margin={{ left: 10, bottom: 5 }} barCategoryGap="25%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" tick={TICK_STYLE} />
-                    <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                    <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v != null ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
-                    <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="6 3" />
-                    <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
-                    <Bar dataKey="mean_foil" name="Mean foil" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-                      <ErrorBar dataKey="mean_foilSEM" width={4} strokeWidth={2} stroke="#b45309" direction="y" />
-                    </Bar>
-                    <Bar dataKey="nonmean_foil" name="Non-mean foil" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
-                      <ErrorBar dataKey="nonmean_foilSEM" width={4} strokeWidth={2} stroke="#6d28d9" direction="y" />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Chart 6: Recognition by probe type */}
-              <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-                <h2 className="text-base font-bold mb-1">Recognition Accuracy × Probe Type</h2>
-                <p className="text-xs text-gray-400 mb-4">Target = set member; Foil-mean = exact mean; Foil-nm = other non-member.</p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={data.chart6} margin={{ left: 10, bottom: 5 }} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" tick={TICK_STYLE} />
-                    <YAxis domain={[0, 100]} tick={TICK_STYLE}
-                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }} />
-                    <Tooltip contentStyle={CHART_BG} formatter={(v: any) => v != null ? [`${Number(v).toFixed(1)}%`, ''] as any : ['', ''] as any} />
-                    <ReferenceLine y={50} stroke="#6b7280" strokeDasharray="6 3" />
-                    <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
-                    <Bar dataKey="target" name="Target" fill="#34d399" radius={[4, 4, 0, 0]}>
-                      <ErrorBar dataKey="targetSEM" width={4} strokeWidth={2} stroke="#059669" direction="y" />
-                    </Bar>
-                    <Bar dataKey="foil_mean" name="Foil (mean)" fill="#fb923c" radius={[4, 4, 0, 0]}>
-                      <ErrorBar dataKey="foil_meanSEM" width={4} strokeWidth={2} stroke="#c2410c" direction="y" />
-                    </Bar>
-                    <Bar dataKey="foil_nm" name="Foil (non-mean)" fill="#e879f9" radius={[4, 4, 0, 0]}>
-                      <ErrorBar dataKey="foil_nmSEM" width={4} strokeWidth={2} stroke="#a21caf" direction="y" />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* ── Chart 7: Scatter per participant ── */}
+            {/* ── Chart 5: Scatter per participant ── */}
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-              <h2 className="text-base font-bold mb-1">Participant Scatter: Mean Assessment vs Binary Accuracy</h2>
+              <h2 className="text-base font-bold mb-1">Participant Scatter: Mean Assessment vs Recognition Accuracy</h2>
               <p className="text-xs text-gray-400 mb-4">
-                X = normalized ensemble accuracy; Y = avg(2AFC, recognition). Diagonal = equal performance.
+                Each dot = one participant. Diagonal = equal performance on both tasks.
               </p>
-              {data.chart7.length < 2 ? (
+              {data.chart5.length < 2 ? (
                 <div className="h-[260px] flex items-center justify-center text-gray-500 text-sm">
                   Need at least 2 participants
                 </div>
@@ -360,18 +327,18 @@ export default function TeacherPage() {
                   <ScatterChart margin={{ left: 10, bottom: 20, right: 20, top: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="x" type="number" name="Ensemble Acc" domain={[0, 100]}
-                      label={{ value: 'Mean Assessment Accuracy (%)', position: 'insideBottom', offset: -12, style: LABEL_STYLE }}
-                      tick={TICK_STYLE}
+                      label={{ value: 'Mean Assessment Accuracy (%)', position: 'insideBottom', offset: -12, style: LBL }}
+                      tick={TICK}
                     />
-                    <YAxis dataKey="y" type="number" name="Binary Acc" domain={[0, 100]}
-                      label={{ value: 'Avg Binary Accuracy (%)', angle: -90, position: 'insideLeft', style: LABEL_STYLE }}
-                      tick={TICK_STYLE}
+                    <YAxis dataKey="y" type="number" name="Recognition Acc" domain={[0, 100]}
+                      label={{ value: 'Recognition Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }}
+                      tick={TICK}
                     />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={<ScatterTooltip />} />
                     <Customized component={DiagonalLine} x1={0} y1={0} x2={100} y2={100} />
-                    <Scatter data={data.chart7} shape={<CustomDot />}>
-                      {data.chart7.map((_, i) => <Cell key={i} fill="#f97316" />)}
+                    <Scatter data={data.chart5} shape={<Dot />}>
+                      {data.chart5.map((_, i) => <Cell key={i} fill="#f97316" />)}
                     </Scatter>
                   </ScatterChart>
                 </ResponsiveContainer>

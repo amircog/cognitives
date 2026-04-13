@@ -2,8 +2,9 @@
 
 export type StimulusType = 'circles' | 'line-lengths';
 export type StatType = 'mean';
-export type TrialType = 'ensemble' | 'recognition' | '2afc';
+export type TrialType = 'ensemble' | 'recognition';
 export type ProbeType = 'target' | 'foil-mean' | 'foil-non-mean';
+// FoilType kept for backward compat with old DB rows
 export type FoilType = 'mean' | 'non-mean';
 
 // A single item in a stimulus array
@@ -15,10 +16,9 @@ export interface ArrayItem {
 }
 
 // ──────────────────────────────────────────────
-// Trial types
+// Trial types (2AFC removed — mean assessment + recognition only)
 // ──────────────────────────────────────────────
 
-// Ensemble: show array → report mean via slider
 export interface EnsembleTrial {
   trialId: number;
   type: 'ensemble';
@@ -30,7 +30,6 @@ export interface EnsembleTrial {
   isPractice: boolean;
 }
 
-// Recognition: show array → show probe → "did you see this exact item?"
 export interface RecognitionTrial {
   trialId: number;
   type: 'recognition';
@@ -43,21 +42,7 @@ export interface RecognitionTrial {
   isPractice: boolean;
 }
 
-// 2AFC: show array → show two items → "which one appeared in the display?"
-export interface TwoAFCTrial {
-  trialId: number;
-  type: '2afc';
-  stimulusType: StimulusType;
-  items: ArrayItem[];
-  nItems: number;
-  trueValue: number;   // a set member that WAS shown
-  foilValue: number;   // a non-member (exact mean if foilType='mean', else other non-member)
-  foilType: FoilType;
-  correctIsA: boolean; // true = left option is correct
-  isPractice: boolean;
-}
-
-export type Trial = EnsembleTrial | RecognitionTrial | TwoAFCTrial;
+export type Trial = EnsembleTrial | RecognitionTrial;
 
 // ──────────────────────────────────────────────
 // DB-storable result types (snake_case for Supabase)
@@ -68,8 +53,8 @@ export interface EnsembleResult {
   participant_name?: string;
   trial_type: 'ensemble';
   trial_number: number;
-  stimulus_type: StimulusType;
-  stat_type: StatType;
+  stimulus_type: string;      // string (not StimulusType) to handle old 'line-orientations' rows
+  stat_type: string;
   n_items: number;
   true_value: number;
   response_value: number;
@@ -84,26 +69,27 @@ export interface RecognitionResult {
   participant_name?: string;
   trial_type: 'recognition';
   trial_number: number;
-  stimulus_type: StimulusType;
+  stimulus_type: string;
   n_items: number;
   probe_value: number;
   probe_is_target: boolean;
-  probe_type: ProbeType;
+  probe_type: string | null;   // null for old rows that predate probe_type column
   response_yes: boolean;
   is_correct: boolean;
   reaction_time_ms: number;
 }
 
+// Kept for backward compatibility with old DB data; no longer generated in new experiments
 export interface TwoAFCResult {
   session_id: string;
   participant_name?: string;
   trial_type: '2afc';
   trial_number: number;
-  stimulus_type: StimulusType;
+  stimulus_type: string;
   n_items: number;
   true_value: number;
   foil_value: number;
-  foil_type: FoilType;
+  foil_type: string | null;
   correct_is_a: boolean;
   chose_a: boolean;
   is_correct: boolean;
