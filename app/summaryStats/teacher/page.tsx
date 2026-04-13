@@ -202,7 +202,7 @@ export default function TeacherPage() {
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
               <h2 className="text-base font-bold mb-1">Overall Accuracy by Stimulus Type</h2>
               <p className="text-xs text-gray-400 mb-4">
-                Recognition: binary (50% = chance). Ensemble: normalized 0–100% (higher = more precise). Error bars = SEM.
+                Both tasks binary, 50% = chance. Mean assessment hit = error ≤ range/4 (circles ≤15 px, lines ≤40 px). Error bars = SEM.
               </p>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={data.chart1} margin={{ left: 10, bottom: 5 }} barCategoryGap="25%">

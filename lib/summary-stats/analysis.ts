@@ -20,12 +20,14 @@ export function computeSEM(vals: number[]): number {
   return Math.sqrt(variance / vals.length);
 }
 
-// Normalize absolute error → accuracy % (0=worst, 100=perfect)
-// Handles unknown types gracefully (returns null to be excluded from aggregation)
-function normalizeEnsembleAcc(absError: number, type: string): number | null {
+// Binary hit/miss for ensemble: hit if |error| ≤ range/4 (equates chance to 50%)
+// Circles range=60 → threshold=15 px; Lines range=160 → threshold=40 px
+// Returns null for unknown stimulus types (old DB rows) so they are excluded.
+function ensembleHit(absError: number, type: string): number | null {
   const info = VALUE_RANGES[type as ValidType];
-  if (!info) return null; // skip unknown types (e.g. old 'line-orientations' rows)
-  return Math.max(0, 100 - (absError / (info.max - info.min)) * 100);
+  if (!info) return null;
+  const threshold = (info.max - info.min) / 4;
+  return absError <= threshold ? 100 : 0;
 }
 
 function safeAcc(correct: number, total: number): number {
@@ -84,7 +86,7 @@ function computePerParticipant(sessionId: string, rows: TrialResult[]): PerParti
 
     // Chart 1 – overall per type
     recognitionAccByType[t] = safeAcc(recT.filter(r => r.is_correct).length, recT.length);
-    const ensAccVals = ensT.map(r => normalizeEnsembleAcc(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
+    const ensAccVals = ensT.map(r => ensembleHit(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
     ensembleAccByType[t] = ensAccVals.length > 0 ? mean(ensAccVals) : 50;
 
     // Charts 2-3 – by set size
@@ -94,7 +96,7 @@ function computePerParticipant(sessionId: string, rows: TrialResult[]): PerParti
       const rc = recT.filter(r => r.n_items === sz);
       const en = ensT.filter(r => r.n_items === sz);
       recognitionAccByTypeSS[t][sz] = safeAcc(rc.filter(r => r.is_correct).length, rc.length);
-      const enAccVals = en.map(r => normalizeEnsembleAcc(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
+      const enAccVals = en.map(r => ensembleHit(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
       ensembleAccByTypeSS[t][sz] = enAccVals.length > 0 ? mean(enAccVals) : 50;
     }
 
@@ -107,7 +109,7 @@ function computePerParticipant(sessionId: string, rows: TrialResult[]): PerParti
   }
 
   // Chart 5 – overall
-  const allEnsAccVals = ensRows.map(r => normalizeEnsembleAcc(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
+  const allEnsAccVals = ensRows.map(r => ensembleHit(r.absolute_error, r.stimulus_type)).filter((v): v is number => v !== null);
   const ensembleAccOverall = allEnsAccVals.length > 0 ? mean(allEnsAccVals) : 50;
   const recognitionAccOverall = safeAcc(recRows.filter(r => r.is_correct).length, recRows.length);
 
