@@ -1,23 +1,24 @@
 // Summary Statistics / Ensemble Perception Experiment
-// Based on Ariely (2001), Chong & Treisman (2003), Alvarez (2011)
 
-export type StimulusType = 'circles' | 'line-lengths' | 'line-orientations';
-export type StatType = 'mean' | 'max' | 'min';
+export type StimulusType = 'circles' | 'line-lengths';
+export type StatType = 'mean';
 export type TrialType = 'ensemble' | 'recognition' | '2afc';
+export type ProbeType = 'target' | 'foil-mean' | 'foil-non-mean';
+export type FoilType = 'mean' | 'non-mean';
 
 // A single item in a stimulus array
 export interface ArrayItem {
   id: number;
   x: number;   // center x in SVG coordinate space (0–500)
   y: number;   // center y in SVG coordinate space (0–500)
-  value: number; // radius (circles), length in px (lines), degrees (orientations)
+  value: number; // radius (circles), length in px (line-lengths)
 }
 
 // ──────────────────────────────────────────────
-// Trial types – all include items so display is within-trial
+// Trial types
 // ──────────────────────────────────────────────
 
-// Ensemble: show array → report summary stat via slider
+// Ensemble: show array → report mean via slider
 export interface EnsembleTrial {
   trialId: number;
   type: 'ensemble';
@@ -34,23 +35,26 @@ export interface RecognitionTrial {
   trialId: number;
   type: 'recognition';
   stimulusType: StimulusType;
-  items: ArrayItem[];   // the array shown before the probe
+  items: ArrayItem[];
   nItems: number;
   probeValue: number;
-  probeIsTarget: boolean;  // true = item was in the array; false = foil
+  probeIsTarget: boolean;
+  probeType: ProbeType;
+  isPractice: boolean;
 }
 
-// 2AFC: show array → show two options → "which was the [mean/max/min]?"
+// 2AFC: show array → show two items → "which one appeared in the display?"
 export interface TwoAFCTrial {
   trialId: number;
   type: '2afc';
   stimulusType: StimulusType;
-  statType: StatType;
   items: ArrayItem[];
   nItems: number;
-  trueValue: number;   // the correct option value
-  foilValue: number;   // the wrong option value
+  trueValue: number;   // a set member that WAS shown
+  foilValue: number;   // a non-member (exact mean if foilType='mean', else other non-member)
+  foilType: FoilType;
   correctIsA: boolean; // true = left option is correct
+  isPractice: boolean;
 }
 
 export type Trial = EnsembleTrial | RecognitionTrial | TwoAFCTrial;
@@ -81,8 +85,10 @@ export interface RecognitionResult {
   trial_type: 'recognition';
   trial_number: number;
   stimulus_type: StimulusType;
+  n_items: number;
   probe_value: number;
   probe_is_target: boolean;
+  probe_type: ProbeType;
   response_yes: boolean;
   is_correct: boolean;
   reaction_time_ms: number;
@@ -94,10 +100,10 @@ export interface TwoAFCResult {
   trial_type: '2afc';
   trial_number: number;
   stimulus_type: StimulusType;
-  stat_type: StatType;
   n_items: number;
   true_value: number;
   foil_value: number;
+  foil_type: FoilType;
   correct_is_a: boolean;
   chose_a: boolean;
   is_correct: boolean;
@@ -105,39 +111,3 @@ export interface TwoAFCResult {
 }
 
 export type TrialResult = EnsembleResult | RecognitionResult | TwoAFCResult;
-
-// ──────────────────────────────────────────────
-// Summary stats for results pages
-// ──────────────────────────────────────────────
-
-export interface EnsembleSummary {
-  byType: Record<StimulusType, { meanAbsError: number; count: number }>;
-  byStat: Record<StatType, { meanAbsError: number; count: number }>;
-  bySetSize: { setSize: number; meanAbsError: number; count: number }[];
-  overallMeanAbsError: number;
-}
-
-export interface RecognitionSummary {
-  byType: Record<StimulusType, { accuracy: number; hitRate: number; faRate: number; count: number }>;
-  overallAccuracy: number;
-  overallHitRate: number;
-  overallFARate: number;
-}
-
-export interface TwoAFCSummary {
-  byType: Record<StimulusType, { accuracy: number; count: number }>;
-  overallAccuracy: number;
-}
-
-export interface SessionSummary {
-  ensemble: EnsembleSummary;
-  recognition: RecognitionSummary;
-  twoAFC: TwoAFCSummary;
-}
-
-// For the old API (SeenArray) – kept for backward compatibility but unused in new flow
-export interface SeenArray {
-  trialId: number;
-  stimulusType: StimulusType;
-  items: ArrayItem[];
-}

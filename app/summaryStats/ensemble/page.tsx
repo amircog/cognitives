@@ -11,42 +11,43 @@ import {
   BLANK_DURATION_MS,
   FIXATION_DURATION_MS,
   TWO_AFC_LABELS,
+  RECOGNITION_LABEL,
 } from '@/lib/summary-stats/stimuli';
 import {
-  EnsembleTrial, RecognitionTrial, TwoAFCTrial,
+  Trial, EnsembleTrial, RecognitionTrial, TwoAFCTrial,
   EnsembleResult, RecognitionResult, TwoAFCResult, TrialResult,
 } from '@/types/summary-stats';
 import { getSupabase } from '@/lib/supabase';
 
 type Phase = 'intro' | 'fixation' | 'array' | 'blank' | 'question' | 'done';
-type MainTrial = EnsembleTrial | RecognitionTrial | TwoAFCTrial;
 
-const TOTAL_TRIALS = 24;
+const TOTAL_TRIALS = 72;
 
 export default function MainExperimentPage() {
   const router = useRouter();
-  const [language, setLanguage]             = useState<'en' | 'he'>('he');
-  const [sessionId, setSessionId]           = useState('');
+  const [language, setLanguage]         = useState<'en' | 'he'>('he');
+  const [sessionId, setSessionId]       = useState('');
   const [participantName, setParticipantName] = useState('');
-  const [trials, setTrials]                 = useState<MainTrial[]>([]);
-  const [currentIndex, setCurrentIndex]     = useState(0);
-  const [phase, setPhase]                   = useState<Phase>('intro');
-  const [results, setResults]               = useState<TrialResult[]>([]);
-  const [responseStart, setResponseStart]   = useState(0);
-  const [saving, setSaving]                 = useState(false);
+  const [trials, setTrials]             = useState<Trial[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [phase, setPhase]               = useState<Phase>('intro');
+  const [results, setResults]           = useState<TrialResult[]>([]);
+  const [responseStart, setResponseStart] = useState(0);
+  const [saving, setSaving]             = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const lang = sessionStorage.getItem('ss_language') as 'en' | 'he' | null;
-    const sid  = sessionStorage.getItem('ss_session_id') || '';
-    const name = sessionStorage.getItem('ss_participant_name') || '';
+    const sid  = sessionStorage.getItem('ss_session_id') ?? '';
+    const name = sessionStorage.getItem('ss_participant_name') ?? '';
     if (lang) setLanguage(lang);
     setSessionId(sid);
     setParticipantName(name);
     setTrials(generateMainTrials());
   }, []);
 
-  const currentTrial = trials[currentIndex] as MainTrial | undefined;
+  const isHe = language === 'he';
+  const currentTrial = trials[currentIndex] as Trial | undefined;
 
   // Timer-driven phase transitions
   useEffect(() => {
@@ -75,7 +76,6 @@ export default function MainExperimentPage() {
       setSaving(true);
       setPhase('done');
       sessionStorage.setItem('ss_main_results', JSON.stringify(newResults));
-
       try {
         const supabase = getSupabase();
         if (!supabase) throw new Error('Supabase not available');
@@ -90,10 +90,10 @@ export default function MainExperimentPage() {
             return { ...base, stat_type: e.stat_type, n_items: e.n_items, true_value: e.true_value, response_value: e.response_value, signed_error: e.signed_error, absolute_error: e.absolute_error, is_practice: e.is_practice };
           } else if (r.trial_type === 'recognition') {
             const rc = r as RecognitionResult;
-            return { ...base, probe_value: rc.probe_value, probe_is_target: rc.probe_is_target, response_yes: rc.response_yes, is_correct: rc.is_correct };
+            return { ...base, n_items: rc.n_items, probe_value: rc.probe_value, probe_is_target: rc.probe_is_target, probe_type: rc.probe_type, response_yes: rc.response_yes, is_correct: rc.is_correct };
           } else {
             const f = r as TwoAFCResult;
-            return { ...base, stat_type: f.stat_type, n_items: f.n_items, true_value: f.true_value, foil_value: f.foil_value, correct_is_a: f.correct_is_a, chose_a: f.chose_a, is_correct: f.is_correct };
+            return { ...base, n_items: f.n_items, true_value: f.true_value, foil_value: f.foil_value, foil_type: f.foil_type, correct_is_a: f.correct_is_a, chose_a: f.chose_a, is_correct: f.is_correct };
           }
         });
         await supabase.from('summary_stats_results').insert(rows);
@@ -118,8 +118,8 @@ export default function MainExperimentPage() {
       session_id: sessionId, participant_name: participantName,
       trial_type: 'ensemble', trial_number: currentIndex + 1,
       stimulus_type: trial.stimulusType, stat_type: trial.statType,
-      n_items: trial.nItems, true_value: trial.trueValue, response_value: value,
-      signed_error: signed, absolute_error: Math.abs(signed),
+      n_items: trial.nItems, true_value: trial.trueValue,
+      response_value: value, signed_error: signed, absolute_error: Math.abs(signed),
       reaction_time_ms: rt, is_practice: false,
     });
   }, [currentTrial, responseStart, sessionId, participantName, currentIndex, advanceTrial]);
@@ -131,8 +131,9 @@ export default function MainExperimentPage() {
     advanceTrial({
       session_id: sessionId, participant_name: participantName,
       trial_type: 'recognition', trial_number: currentIndex + 1,
-      stimulus_type: trial.stimulusType, probe_value: trial.probeValue,
-      probe_is_target: trial.probeIsTarget, response_yes: yes,
+      stimulus_type: trial.stimulusType, n_items: trial.nItems,
+      probe_value: trial.probeValue, probe_is_target: trial.probeIsTarget,
+      probe_type: trial.probeType, response_yes: yes,
       is_correct: yes === trial.probeIsTarget, reaction_time_ms: rt,
     });
   }, [currentTrial, responseStart, sessionId, participantName, currentIndex, advanceTrial]);
@@ -144,216 +145,174 @@ export default function MainExperimentPage() {
     advanceTrial({
       session_id: sessionId, participant_name: participantName,
       trial_type: '2afc', trial_number: currentIndex + 1,
-      stimulus_type: trial.stimulusType, stat_type: trial.statType,
-      n_items: trial.nItems, true_value: trial.trueValue, foil_value: trial.foilValue,
-      correct_is_a: trial.correctIsA, chose_a: choseA,
-      is_correct: choseA === trial.correctIsA, reaction_time_ms: rt,
+      stimulus_type: trial.stimulusType, n_items: trial.nItems,
+      true_value: trial.trueValue, foil_value: trial.foilValue,
+      foil_type: trial.foilType, correct_is_a: trial.correctIsA,
+      chose_a: choseA, is_correct: choseA === trial.correctIsA, reaction_time_ms: rt,
     });
   }, [currentTrial, responseStart, sessionId, participantName, currentIndex, advanceTrial]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    if (phase !== 'question' || !currentTrial) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (currentTrial.type === 'recognition') {
-        if (e.key === 's' || e.key === 'S') handleRecognitionResponse(true);
-        if (e.key === 'n' || e.key === 'N') handleRecognitionResponse(false);
-      }
-      if (currentTrial.type === '2afc') {
-        if (e.key === 'f' || e.key === 'F') handle2AFCResponse(true);
-        if (e.key === 'j' || e.key === 'J') handle2AFCResponse(false);
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [phase, currentTrial, handleRecognitionResponse, handle2AFCResponse]);
-
-  const t = language === 'he' ? {
-    introTitle:    'הניסוי הראשי',
-    introDesc:     'בכל ניסוי תראה תצוגה קצרה, ואחריה שאלה אחת מתוך שלושה סוגים:',
-    introTypes: [
-      '📊 סטטיסטיקה — דווח על הממוצע / הגדול ביותר / הקטן ביותר באמצעות פס הזזה',
-      '🔍 זיהוי — האם פריט זה הופיע בתצוגה?  (S = כן ,  N = לא)',
-      '⚖️ בחירה — איזה מבין שני הפריטים תואם את הסטטיסטיקה?  (F = שמאל ,  J = ימין)',
-    ],
-    startButton:   'התחל',
-    probeQuestion: 'האם פריט זה הופיע בתצוגה?',
-    yes: 'כן  (S)', no: 'לא  (N)',
-    optA: 'F  ←',  optB: '→  J',
-    doneTitle: 'סיימת!', doneSaving: 'שומר תוצאות...',
-    continueBtn: 'המשך',
-  } : {
-    introTitle:    'Main Experiment',
-    introDesc:     'Each trial shows a brief display, then one of three question types:',
-    introTypes: [
-      '📊 Statistic — report mean / largest / smallest using a slider',
-      '🔍 Recognition — did that single item appear in the display?  (S = Yes ,  N = No)',
-      '⚖️ 2AFC — which of the two items matches the statistic?  (F = left ,  J = right)',
-    ],
-    startButton:   'Begin',
-    probeQuestion: 'Did this item appear in the display?',
-    yes: 'Yes  (S)', no: 'No  (N)',
-    optA: 'F  ←',   optB: '→  J',
-    doneTitle: 'Done!', doneSaving: 'Saving…',
-    continueBtn: 'Continue',
-  };
-
   const progress = (currentIndex / TOTAL_TRIALS) * 100;
+  const afc = currentTrial?.type === '2afc' ? (currentTrial as TwoAFCTrial) : null;
+  const optAValue = afc ? (afc.correctIsA ? afc.trueValue : afc.foilValue) : 0;
+  const optBValue = afc ? (afc.correctIsA ? afc.foilValue : afc.trueValue) : 0;
 
-  // Compute 2AFC option values (A = left option, B = right)
-  const afc = currentTrial?.type === '2afc' ? currentTrial as TwoAFCTrial : null;
-  const optionAValue = afc ? (afc.correctIsA ? afc.trueValue : afc.foilValue) : 0;
-  const optionBValue = afc ? (afc.correctIsA ? afc.foilValue : afc.trueValue) : 0;
+  const t = {
+    introTitle:  isHe ? 'הניסוי הראשי'   : 'Main Experiment',
+    startBtn:    isHe ? 'התחל'            : 'Begin',
+    probeQ:      RECOGNITION_LABEL[language],
+    afcQ:        currentTrial?.type === '2afc' ? TWO_AFC_LABELS[currentTrial.stimulusType][language] : '',
+    yes:         isHe ? 'כן' : 'Yes',
+    no:          isHe ? 'לא' : 'No',
+    doneTitle:   isHe ? '!סיימת'          : 'Done!',
+    doneSaving:  isHe ? 'שומר תוצאות...' : 'Saving…',
+    continueBtn: isHe ? 'המשך'            : 'Continue',
+  };
 
   return (
     <div
-      className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center"
-      style={{ direction: language === 'he' ? 'rtl' : 'ltr' }}
+      className="bg-[#0f172a] flex flex-col select-none"
+      style={{ height: '100dvh', direction: isHe ? 'rtl' : 'ltr' }}
     >
-      {/* Progress bar */}
+      {/* Top bar */}
       {phase !== 'intro' && phase !== 'done' && (
-        <div className="fixed top-0 left-0 right-0 h-1.5 bg-gray-800">
-          <motion.div className="h-full bg-orange-500" animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }} />
+        <div className="flex-shrink-0 h-6">
+          <div className="h-1.5 bg-gray-800">
+            <motion.div className="h-full bg-orange-500" animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }} />
+          </div>
+          <div className="flex justify-end px-4 pt-0.5">
+            <span className="text-xs text-gray-500 tabular-nums">{currentIndex + 1} / {TOTAL_TRIALS}</span>
+          </div>
         </div>
       )}
-      {phase !== 'intro' && phase !== 'done' && (
-        <div className="fixed top-4 right-4 text-gray-500 text-sm tabular-nums">
-          {currentIndex + 1} / {TOTAL_TRIALS}
-        </div>
-      )}
+      {(phase === 'intro' || phase === 'done') && <div className="flex-shrink-0 h-6" />}
 
-      <AnimatePresence mode="wait">
+      {/* Main content */}
+      <div className="flex-1 flex flex-col items-center justify-center overflow-hidden px-4">
+        <AnimatePresence mode="wait">
 
-        {/* INTRO */}
-        {phase === 'intro' && (
-          <motion.div key="intro"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="max-w-lg w-full mx-auto px-6 text-center"
-          >
-            <h1 className="text-3xl font-bold text-white mb-4">{t.introTitle}</h1>
-            <p className="text-gray-300 mb-4">{t.introDesc}</p>
-            <ul className="text-start mb-8 space-y-2">
-              {t.introTypes.map((line, i) => (
-                <li key={i} className="text-gray-200 text-sm bg-gray-800 rounded-lg px-4 py-3">{line}</li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setPhase('fixation')}
-              className="px-12 py-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xl transition-colors shadow-lg"
+          {/* INTRO */}
+          {phase === 'intro' && (
+            <motion.div key="intro"
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-6 text-center"
             >
-              {t.startButton}
-            </button>
-          </motion.div>
-        )}
+              <h1 className="text-3xl font-bold text-white">{t.introTitle}</h1>
+              <button
+                onPointerDown={e => { e.preventDefault(); setPhase('fixation'); }}
+                className="px-12 py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-xl transition-colors shadow-lg touch-manipulation"
+              >{t.startBtn}</button>
+            </motion.div>
+          )}
 
-        {/* FIXATION */}
-        {phase === 'fixation' && (
-          <motion.div key={`fix-${currentIndex}`}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="text-white text-6xl font-thin select-none"
-          >+</motion.div>
-        )}
+          {/* FIXATION */}
+          {phase === 'fixation' && (
+            <motion.div key={`fix-${currentIndex}`}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="text-white text-6xl font-thin">+</motion.div>
+          )}
 
-        {/* ARRAY */}
-        {phase === 'array' && currentTrial && (
-          <motion.div key={`arr-${currentIndex}`}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <ArrayDisplay items={currentTrial.items} stimulusType={currentTrial.stimulusType} size={500} />
-          </motion.div>
-        )}
+          {/* ARRAY */}
+          {phase === 'array' && currentTrial && (
+            <motion.div key={`arr-${currentIndex}`}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ width: '100%', maxWidth: 480 }}
+            >
+              <ArrayDisplay items={currentTrial.items} stimulusType={currentTrial.stimulusType} />
+            </motion.div>
+          )}
 
-        {/* BLANK */}
-        {phase === 'blank' && (
-          <motion.div key="blank"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ width: 500, height: 500, background: '#1a1a2e', borderRadius: 8 }}
-          />
-        )}
-
-        {/* QUESTION — ENSEMBLE */}
-        {phase === 'question' && currentTrial?.type === 'ensemble' && (
-          <motion.div key={`q-e-${currentIndex}`}
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="w-full max-w-lg px-6"
-          >
-            <ResponseScale
-              stimulusType={(currentTrial as EnsembleTrial).stimulusType}
-              statType={(currentTrial as EnsembleTrial).statType}
-              onConfirm={handleEnsembleResponse}
-              language={language}
+          {/* BLANK */}
+          {phase === 'blank' && (
+            <motion.div key="blank"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ width: '100%', maxWidth: 480, aspectRatio: '1', background: '#1a1a2e', borderRadius: 8 }}
             />
-          </motion.div>
-        )}
+          )}
 
-        {/* QUESTION — RECOGNITION */}
-        {phase === 'question' && currentTrial?.type === 'recognition' && (
-          <motion.div key={`q-r-${currentIndex}`}
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="flex flex-col items-center gap-6"
-          >
-            <p className="text-gray-200 text-xl font-semibold">{t.probeQuestion}</p>
-            <SingleItemDisplay
-              value={(currentTrial as RecognitionTrial).probeValue}
-              stimulusType={(currentTrial as RecognitionTrial).stimulusType}
-              size={220} color="#f97316"
-            />
-            <div className="flex gap-6">
-              <button onClick={() => handleRecognitionResponse(true)}
-                className="px-10 py-3 bg-green-700 hover:bg-green-600 text-white font-bold rounded-xl text-lg transition-colors shadow-lg">
-                {t.yes}
-              </button>
-              <button onClick={() => handleRecognitionResponse(false)}
-                className="px-10 py-3 bg-red-800 hover:bg-red-700 text-white font-bold rounded-xl text-lg transition-colors shadow-lg">
-                {t.no}
-              </button>
-            </div>
-          </motion.div>
-        )}
+          {/* QUESTION — ENSEMBLE */}
+          {phase === 'question' && currentTrial?.type === 'ensemble' && (
+            <motion.div key={`q-e-${currentIndex}`}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="w-full max-w-sm"
+            >
+              <ResponseScale
+                stimulusType={(currentTrial as EnsembleTrial).stimulusType}
+                onConfirm={handleEnsembleResponse}
+                language={language}
+              />
+            </motion.div>
+          )}
 
-        {/* QUESTION — 2AFC */}
-        {phase === 'question' && currentTrial?.type === '2afc' && afc && (
-          <motion.div key={`q-f-${currentIndex}`}
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="flex flex-col items-center gap-6 px-4"
-          >
-            <p className="text-gray-200 text-xl font-semibold text-center">
-              {TWO_AFC_LABELS[afc.stimulusType][afc.statType][language]}
-            </p>
-            <div className="flex gap-8 items-end" style={{ direction: 'ltr' }}>
-              <button onClick={() => handle2AFCResponse(true)}
-                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 hover:bg-gray-750 transition-all group">
-                <SingleItemDisplay value={optionAValue} stimulusType={afc.stimulusType} size={180} color="#f97316" />
-                <span className="text-gray-400 text-sm group-hover:text-orange-400 font-mono">{t.optA}</span>
-              </button>
-              <button onClick={() => handle2AFCResponse(false)}
-                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 hover:bg-gray-750 transition-all group">
-                <SingleItemDisplay value={optionBValue} stimulusType={afc.stimulusType} size={180} color="#f97316" />
-                <span className="text-gray-400 text-sm group-hover:text-orange-400 font-mono">{t.optB}</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
+          {/* QUESTION — RECOGNITION */}
+          {phase === 'question' && currentTrial?.type === 'recognition' && (
+            <motion.div key={`q-r-${currentIndex}`}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-5"
+            >
+              <p className="text-gray-200 text-lg font-semibold text-center px-4">{t.probeQ}</p>
+              <SingleItemDisplay
+                value={(currentTrial as RecognitionTrial).probeValue}
+                stimulusType={currentTrial.stimulusType}
+                size={200} color="#f97316"
+              />
+              <div className="flex gap-4">
+                <button
+                  onPointerDown={e => { e.preventDefault(); handleRecognitionResponse(true); }}
+                  className="px-10 py-4 bg-green-700 hover:bg-green-600 text-white font-bold rounded-2xl text-xl touch-manipulation shadow-lg"
+                >{t.yes}</button>
+                <button
+                  onPointerDown={e => { e.preventDefault(); handleRecognitionResponse(false); }}
+                  className="px-10 py-4 bg-red-800 hover:bg-red-700 text-white font-bold rounded-2xl text-xl touch-manipulation shadow-lg"
+                >{t.no}</button>
+              </div>
+            </motion.div>
+          )}
 
-        {/* DONE */}
-        {phase === 'done' && (
-          <motion.div key="done"
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="text-center px-6"
-          >
-            <div className="text-5xl mb-4">✅</div>
-            <h1 className="text-3xl font-bold text-white mb-3">{t.doneTitle}</h1>
-            {saving && <p className="text-orange-300 animate-pulse">{t.doneSaving}</p>}
-            {!saving && (
-              <button onClick={() => router.push('/summaryStats/thanks')}
-                className="mt-6 px-10 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-lg transition-colors">
-                {t.continueBtn}
-              </button>
-            )}
-          </motion.div>
-        )}
+          {/* QUESTION — 2AFC */}
+          {phase === 'question' && currentTrial?.type === '2afc' && afc && (
+            <motion.div key={`q-f-${currentIndex}`}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-5 px-2"
+            >
+              <p className="text-gray-200 text-lg font-semibold text-center">{t.afcQ}</p>
+              <div className="flex gap-5 items-end" style={{ direction: 'ltr' }}>
+                <button
+                  onPointerDown={e => { e.preventDefault(); handle2AFCResponse(true); }}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 active:scale-95 transition-all touch-manipulation"
+                >
+                  <SingleItemDisplay value={optAValue} stimulusType={afc.stimulusType} size={170} color="#f97316" />
+                </button>
+                <button
+                  onPointerDown={e => { e.preventDefault(); handle2AFCResponse(false); }}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-gray-600 hover:border-orange-400 bg-gray-800 active:scale-95 transition-all touch-manipulation"
+                >
+                  <SingleItemDisplay value={optBValue} stimulusType={afc.stimulusType} size={170} color="#f97316" />
+                </button>
+              </div>
+            </motion.div>
+          )}
 
-      </AnimatePresence>
+          {/* DONE */}
+          {phase === 'done' && (
+            <motion.div key="done"
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+              className="text-center px-6"
+            >
+              <div className="text-5xl mb-4">✅</div>
+              <h1 className="text-3xl font-bold text-white mb-3">{t.doneTitle}</h1>
+              {saving && <p className="text-orange-300 animate-pulse">{t.doneSaving}</p>}
+              {!saving && (
+                <button
+                  onPointerDown={e => { e.preventDefault(); router.push('/summaryStats/thanks'); }}
+                  className="mt-6 px-10 py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation"
+                >{t.continueBtn}</button>
+              )}
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
