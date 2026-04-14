@@ -126,7 +126,7 @@ export default function TeacherPage() {
       const rows = await fetchAllRows(supabase);
       if (!rows.length) return;
       const headers = Object.keys(rows[0]).join(',');
-      const csv = [headers, ...rows.map((r: Record<string, unknown>) => Object.values(r).join(','))].join('\n');
+      const csv = [headers, ...rows.map(r => Object.values(r as Record<string, unknown>).join(','))].join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
