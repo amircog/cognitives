@@ -67,18 +67,32 @@ export default function TeacherDashboard() {
     }
   };
 
+  // Supabase enforces a server-side max of 1000 rows per request.
+  // Paginate in batches until we get a partial page (end of data).
+  const fetchAllRows = async (): Promise<TrialResult[]> => {
+    const PAGE = 1000;
+    const all: TrialResult[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('stroop_results')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      if (data) all.push(...(data as TrialResult[]));
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('stroop_results')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .limit(100000);
-
-      if (fetchError) throw fetchError;
+      const data = await fetchAllRows();
 
       if (!data || data.length === 0) {
         setError('No data available yet. Waiting for participants to complete the experiment.');

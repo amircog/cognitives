@@ -73,19 +73,33 @@ export default function TeacherPage() {
     }
   };
 
+  // Supabase enforces a server-side max of 1000 rows per request regardless of .limit().
+  // Paginate in batches until we get a partial page (meaning we've reached the end).
+  const fetchAllRows = useCallback(async (supabase: ReturnType<typeof getSupabase>) => {
+    if (!supabase) throw new Error('Supabase client not available. Check environment variables.');
+    const PAGE = 1000;
+    const all: TrialResult[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('summary_stats_results')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`Database error: ${error.message}`);
+      if (data) all.push(...(data as TrialResult[]));
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }, []);
+
   const fetchData = useCallback(async () => {
     setRefreshing(true);
     setError(null);
     try {
       const supabase = getSupabase();
-      if (!supabase) throw new Error('Supabase client not available. Check environment variables.');
-      const { data: rows, error: dbErr } = await supabase
-        .from('summary_stats_results')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .limit(100000);
-
-      if (dbErr) throw new Error(`Database error: ${dbErr.message}`);
+      const rows = await fetchAllRows(supabase);
 
       if (rows && rows.length > 0) {
         const result = computeTeacherData(rows as TrialResult[]);
@@ -109,8 +123,8 @@ export default function TeacherPage() {
     try {
       const supabase = getSupabase();
       if (!supabase) return;
-      const { data: rows } = await supabase.from('summary_stats_results').select('*').order('created_at').limit(100000);
-      if (!rows?.length) return;
+      const rows = await fetchAllRows(supabase);
+      if (!rows.length) return;
       const headers = Object.keys(rows[0]).join(',');
       const csv = [headers, ...rows.map((r: Record<string, unknown>) => Object.values(r).join(','))].join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
