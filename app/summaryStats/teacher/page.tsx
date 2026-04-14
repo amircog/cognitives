@@ -82,7 +82,8 @@ export default function TeacherPage() {
       const { data: rows, error: dbErr } = await supabase
         .from('summary_stats_results')
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100000);
 
       if (dbErr) throw new Error(`Database error: ${dbErr.message}`);
 
@@ -108,7 +109,7 @@ export default function TeacherPage() {
     try {
       const supabase = getSupabase();
       if (!supabase) return;
-      const { data: rows } = await supabase.from('summary_stats_results').select('*').order('created_at');
+      const { data: rows } = await supabase.from('summary_stats_results').select('*').order('created_at').limit(100000);
       if (!rows?.length) return;
       const headers = Object.keys(rows[0]).join(',');
       const csv = [headers, ...rows.map((r: Record<string, unknown>) => Object.values(r).join(','))].join('\n');

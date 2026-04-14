@@ -75,7 +75,8 @@ export default function TeacherDashboard() {
       const { data, error: fetchError } = await supabase
         .from('stroop_results')
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100000);
 
       if (fetchError) throw fetchError;
 
