@@ -304,9 +304,9 @@ export default function TeacherPage() {
               <p className="text-xs text-gray-400 mb-4">
                 Each dot = one participant. Diagonal = equal performance on both tasks.
               </p>
-              {data.chart5.length < 2 ? (
+              {data.chart5.length === 0 ? (
                 <div className="h-[260px] flex items-center justify-center text-gray-500 text-sm">
-                  Need at least 2 participants
+                  No participant data yet
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
