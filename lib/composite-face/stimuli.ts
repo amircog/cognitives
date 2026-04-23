@@ -92,6 +92,16 @@ export function generateMainTrials(): Trial[] {
   return shuffle(trials);
 }
 
+// ── Image preloading ─────────────────────────────────────────────────────────
+// Call once at page mount so browser caches all face images before trial 1.
+export function preloadAllFaces(): void {
+  const urls = [
+    ...Array.from({ length: 26 }, (_, i) => `/faces/c2_1_${i + 1}.jpg`),
+    ...Array.from({ length: 26 }, (_, i) => `/faces/c2_2_${i + 1}.jpg`),
+  ];
+  urls.forEach(src => { const img = new Image(); img.src = src; });
+}
+
 export const CONDITION_LABELS: Record<Condition, { en: string; he: string }> = {
   'aligned':          { en: 'Aligned',         he: 'מיושר' },
   'small-misaligned': { en: 'Misaligned (S)',   he: 'לא מיושר (ק)' },

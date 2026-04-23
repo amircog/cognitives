@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaceDisplay, StudyFace } from '@/components/composite-face/FaceDisplay';
-import { generatePracticeTrials } from '@/lib/composite-face/stimuli';
+import { generatePracticeTrials, preloadAllFaces } from '@/lib/composite-face/stimuli';
 import { Trial } from '@/types/composite-face';
 
 type Phase = 'fixation' | 'study' | 'blank' | 'test' | 'feedback';
@@ -26,6 +26,7 @@ export default function PracticePage() {
   useEffect(() => {
     const lang = sessionStorage.getItem('cf_language') as 'en' | 'he' | null;
     if (lang) setLanguage(lang);
+    preloadAllFaces();
     setTrials(generatePracticeTrials());
   }, []);
 

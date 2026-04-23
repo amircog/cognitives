@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search } from 'lucide-react';
+import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users } from 'lucide-react';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 
@@ -132,6 +132,15 @@ export default function HomePage() {
       color: 'rose',
       available: true,
     },
+    {
+      id: 'CompositeFace',
+      title: 'Composite Face Task',
+      description: 'Explore holistic face processing',
+      descriptionHe: 'חקרו עיבוד הוליסטי של פנים',
+      icon: Users,
+      color: 'pink',
+      available: true,
+    },
   ];
 
   return (
@@ -178,6 +187,7 @@ export default function HomePage() {
                 {experiment.id === 'summaryStats' && <experiment.icon className="w-16 h-16 text-orange-400" />}
                 {experiment.id === 'posnerCueing' && <experiment.icon className="w-16 h-16 text-amber-400" />}
                 {experiment.id === 'visualSearch' && <experiment.icon className="w-16 h-16 text-rose-400" />}
+                {experiment.id === 'CompositeFace' && <experiment.icon className="w-16 h-16 text-pink-400" />}
               </div>
 
               <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>

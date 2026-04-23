@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaceDisplay, StudyFace } from '@/components/composite-face/FaceDisplay';
-import { generateMainTrials } from '@/lib/composite-face/stimuli';
+import { generateMainTrials, preloadAllFaces } from '@/lib/composite-face/stimuli';
 import { Trial, TrialResult } from '@/types/composite-face';
 import { getSupabase } from '@/lib/supabase';
 
@@ -30,6 +30,7 @@ export default function ExperimentPage() {
   useEffect(() => {
     const lang = sessionStorage.getItem('cf_language') as 'en' | 'he' | null;
     if (lang) setLanguage(lang);
+    preloadAllFaces();
     setTrials(generateMainTrials());
   }, []);
 
