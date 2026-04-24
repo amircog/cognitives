@@ -138,17 +138,9 @@ export default function PracticePage() {
 
           {phase === 'stimulus' && (
             <div style={{ direction: 'rtl' }}>
-              {trial.condition === 'single-letter' ? (
-                <WordShape
-                  length={trial.wordLength}
-                  targetIdx={TARGET_IDX}
-                  getLetter={i => i === TARGET_IDX ? trial.correctLetter : ''}
-                />
-              ) : (
-                <span style={{ fontSize: 36, fontWeight: 700, color: '#f1f5f9', fontFamily: 'monospace', letterSpacing: 6 }}>
-                  {trial.stimulus}
-                </span>
-              )}
+              <span style={{ fontSize: 36, fontWeight: 700, color: '#f1f5f9', fontFamily: 'monospace', letterSpacing: 6 }}>
+                {trial.stimulus}
+              </span>
             </div>
           )}
 
