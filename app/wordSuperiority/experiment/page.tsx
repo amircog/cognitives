@@ -10,7 +10,7 @@ import { getSupabase } from '@/lib/supabase';
 type Phase = 'fixation' | 'stimulus' | 'mask' | 'response' | 'iti';
 
 const TOTAL  = 60;
-const ITI_MS = 300;
+const ITI_MS = 300; // inter-trial interval
 
 // ── WordShape ────────────────────────────────────────────────────────────────
 function WordShape({ length, targetIdx, getLetter }: {
