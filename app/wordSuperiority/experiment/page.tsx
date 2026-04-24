@@ -197,7 +197,7 @@ export default function ExperimentPage() {
           )}
 
           {phase === 'mask' && (
-            <div style={{ fontSize: 36, fontWeight: 700, color: '#6b7280', fontFamily: 'monospace', letterSpacing: 6 }}>
+            <div style={{ fontSize: 36, fontWeight: 700, color: '#f1f5f9', fontFamily: 'monospace', letterSpacing: 6 }}>
               {'#'.repeat(trial.wordLength)}
             </div>
           )}
