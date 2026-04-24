@@ -17,7 +17,7 @@ function WordShape({ length, targetIdx, getLetter }: {
   getLetter?: (i: number) => string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'row', direction: 'rtl', gap: 6 }}>
       {Array.from({ length }, (_, i) => {
         const isTarget = i === targetIdx;
         const letter = getLetter ? getLetter(i) : undefined;
