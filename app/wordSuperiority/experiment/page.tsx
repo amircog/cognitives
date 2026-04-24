@@ -174,19 +174,14 @@ export default function ExperimentPage() {
 
       {/* Center */}
       <div className="flex-1 flex flex-col items-center justify-center overflow-hidden px-4">
-        <AnimatePresence mode="wait">
 
+          {/* Timed phases — no AnimatePresence so 50ms stimulus isn't eaten by exit animation */}
           {(phase === 'fixation' || phase === 'iti') && (
-            <motion.div key={`fix-${idx}`}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="text-white text-6xl font-thin">+</motion.div>
+            <div className="text-white text-6xl font-thin">+</div>
           )}
 
           {phase === 'stimulus' && (
-            <motion.div key={`stim-${idx}`}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ direction: 'rtl' }}
-            >
+            <div style={{ direction: 'rtl' }}>
               {trial.condition === 'single-letter' ? (
                 <WordShape
                   length={trial.wordLength}
@@ -198,21 +193,20 @@ export default function ExperimentPage() {
                   {trial.stimulus}
                 </span>
               )}
-            </motion.div>
+            </div>
           )}
 
           {phase === 'mask' && (
-            <motion.div key={`mask-${idx}`}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ fontSize: 36, fontWeight: 700, color: '#6b7280', fontFamily: 'monospace', letterSpacing: 6 }}
-            >
+            <div style={{ fontSize: 36, fontWeight: 700, color: '#6b7280', fontFamily: 'monospace', letterSpacing: 6 }}>
               {'#'.repeat(trial.wordLength)}
-            </motion.div>
+            </div>
           )}
 
+          {/* Response — animated fade-in is fine here (no timing constraint) */}
+          <AnimatePresence>
           {phase === 'response' && (
             <motion.div key={`resp-${idx}`}
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               className="flex flex-col items-center gap-6"
             >
               <p className="text-gray-300 text-base font-semibold text-center">{t.question}</p>
@@ -230,8 +224,7 @@ export default function ExperimentPage() {
               </div>
             </motion.div>
           )}
-
-        </AnimatePresence>
+          </AnimatePresence>
       </div>
     </div>
   );
