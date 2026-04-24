@@ -12,10 +12,38 @@ async function sha256(str: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+type Exp = { id: string; title: string; titleHe: string; icon: React.ElementType; color: string };
+
+const EXPERIMENTS: Exp[] = [
+  { id: 'summaryStats',    title: 'Ensemble Perception',     titleHe: 'תפיסת מכלול',        icon: BarChart2, color: 'text-orange-400'  },
+  { id: 'CompositeFace',   title: 'Composite Face Task',     titleHe: 'משימת פנים מורכבות', icon: Users,     color: 'text-pink-400'    },
+  { id: 'wordSuperiority', title: 'Word Superiority Effect', titleHe: 'אפקט עליונות המילה', icon: Type,      color: 'text-teal-400'    },
+  { id: 'visualSearch',    title: 'Visual Search',           titleHe: 'חיפוש חזותי',        icon: Search,    color: 'text-rose-400'    },
+  { id: 'posnerCueing',    title: 'Spatial Cueing',          titleHe: 'הכוונה מרחבית',      icon: Target,    color: 'text-amber-400'   },
+  { id: 'bouba-kiki',      title: 'Bouba-Kiki Effect',       titleHe: 'אפקט בובה-קיקי',    icon: Shapes,    color: 'text-indigo-400'  },
+  { id: 'stroop',          title: 'Stroop Effect',           titleHe: 'אפקט סטרופ',         icon: Brain,     color: 'text-emerald-400' },
+  { id: 'mentalRep',       title: 'Mental Representation',   titleHe: 'ייצוג מנטלי',        icon: BrainCog,  color: 'text-cyan-400'    },
+  { id: 'drm',             title: 'False Memory (DRM)',      titleHe: 'זיכרון שווא',        icon: Beaker,    color: 'text-purple-400'  },
+];
+
+const CATEGORIES = [
+  { name: 'PERCEPTION',        nameHe: 'תפיסה',         ids: ['summaryStats', 'CompositeFace', 'wordSuperiority'] },
+  { name: 'ATTENTION',         nameHe: 'קשב',           ids: ['visualSearch', 'posnerCueing'] },
+  { name: 'LANGUAGE',          nameHe: 'שפה',           ids: ['bouba-kiki'] },
+  { name: 'EXECUTIVE CONTROL', nameHe: 'בקרה ניהולית', ids: ['stroop'] },
+  { name: 'IMAGINATION',       nameHe: 'דמיון',         ids: ['mentalRep'] },
+  { name: 'MEMORY',            nameHe: 'זיכרון',        ids: ['drm'] },
+  { name: 'LEARNING',          nameHe: 'למידה',         ids: [] },
+  { name: 'CONSCIOUSNESS',     nameHe: 'תודעה',         ids: [] },
+  { name: 'DECISION MAKING',   nameHe: 'קבלת החלטות',  ids: [] },
+  { name: 'THINKING',          nameHe: 'חשיבה',         ids: [] },
+  { name: 'CATEGORIZATION',    nameHe: 'קטגוריזציה',   ids: [] },
+  { name: 'HUMOR',             nameHe: 'הומור',         ids: [] },
+  { name: 'CREATIVITY',        nameHe: 'יצירתיות',     ids: [] },
+];
+
 export default function HomePage() {
   const router = useRouter();
-
-  // ── Password gate ──────────────────────────────────────────────────────────
   const [authed, setAuthed]   = useState(false);
   const [pwInput, setPwInput] = useState('');
   const [pwError, setPwError] = useState(false);
@@ -68,152 +96,62 @@ export default function HomePage() {
     );
   }
 
-  const experiments = [
-    {
-      id: 'stroop',
-      title: 'Stroop Effect',
-      description: 'Explore selective attention and cognitive interference',
-      descriptionHe: 'חקרו קשב סלקטיבי והפרעות קוגניטיביות',
-      icon: Brain,
-      color: 'emerald',
-      available: true,
-    },
-    {
-      id: 'drm',
-      title: 'False Memory (DRM)',
-      description: 'Experience how memory can create false recollections',
-      descriptionHe: 'חוו איך הזיכרון יוצר זיכרונות שווא',
-      icon: Beaker,
-      color: 'purple',
-      available: true,
-    },
-    {
-      id: 'bouba-kiki',
-      title: 'Bouba-Kiki Effect',
-      description: 'Discover cross-modal sound symbolism',
-      descriptionHe: 'גלה סימבוליזם צלילי חוצה-מודאלי',
-      icon: Shapes,
-      color: 'indigo',
-      available: true,
-    },
-    {
-      id: 'mentalRep',
-      title: 'Mental Representation',
-      description: 'Explore mental scanning and mental rotation',
-      descriptionHe: 'חקרו סריקה מנטלית וסיבוב מנטלי',
-      icon: BrainCog,
-      color: 'cyan',
-      available: true,
-    },
-    {
-      id: 'summaryStats',
-      title: 'Ensemble Perception',
-      description: 'Can you read the statistics of a crowd?',
-      descriptionHe: 'האם ניתן לקרוא את הסטטיסטיקות של קהל?',
-      icon: BarChart2,
-      color: 'orange',
-      available: true,
-    },
-    {
-      id: 'posnerCueing',
-      title: 'Spatial Cueing',
-      description: 'Explore covert attention and the cueing effect',
-      descriptionHe: 'חקרו קשב סמוי ואפקט ההכוונה של פוזנר',
-      icon: Target,
-      color: 'amber',
-      available: true,
-    },
-    {
-      id: 'visualSearch',
-      title: 'Visual Search',
-      description: 'Feature vs conjunction search and the pop-out effect',
-      descriptionHe: 'חיפוש תכונה לעומת צירוף ואפקט הבולטות',
-      icon: Search,
-      color: 'rose',
-      available: true,
-    },
-    {
-      id: 'CompositeFace',
-      title: 'Composite Face Task',
-      description: 'Explore holistic face processing',
-      descriptionHe: 'חקרו עיבוד הוליסטי של פנים',
-      icon: Users,
-      color: 'pink',
-      available: true,
-    },
-    {
-      id: 'wordSuperiority',
-      title: 'Word Superiority Effect',
-      description: 'Letters are recognized better in words',
-      descriptionHe: 'אותיות מזוהות טוב יותר בתוך מילים',
-      icon: Type,
-      color: 'teal',
-      available: true,
-    },
-  ];
+  const expMap = Object.fromEntries(EXPERIMENTS.map(e => [e.id, e]));
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+    <main className="min-h-screen flex flex-col items-center px-6 py-10">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="text-center max-w-4xl"
+        className="w-full max-w-4xl"
       >
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <FlaskConical className="w-12 h-12 text-emerald-400" />
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            תהליכים קוגניטיביים
-          </h1>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-1">
+          <FlaskConical className="w-7 h-7 text-emerald-400" />
+          <h1 className="text-2xl font-bold">תהליכים קוגניטיביים</h1>
         </div>
-
-        <p className="text-xl text-muted mb-12">
-          ניסויי כיתה • Cognitive Processes Course Experiments
+        <p className="text-sm text-muted mb-10 ml-10">
+          ניסויי כיתה &nbsp;•&nbsp; Cognitive Processes Course Experiments
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {experiments.map((experiment) => (
-            <motion.div
-              key={experiment.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (experiment.available) {
-                  router.push(`/${experiment.id}`);
-                }
-              }}
-              className={`
-                bg-card border border-border rounded-xl p-8 cursor-pointer
-                transition-all hover:border-emerald-400/50
-                ${!experiment.available ? 'opacity-50 cursor-not-allowed' : ''}
-              `}
-            >
-              <div className="flex items-center justify-center mb-4">
-                {experiment.id === 'stroop' && <experiment.icon className="w-16 h-16 text-emerald-400" />}
-                {experiment.id === 'drm' && <experiment.icon className="w-16 h-16 text-purple-400" />}
-                {experiment.id === 'bouba-kiki' && <experiment.icon className="w-16 h-16 text-indigo-400" />}
-                {experiment.id === 'mentalRep' && <experiment.icon className="w-16 h-16 text-cyan-400" />}
-                {experiment.id === 'summaryStats' && <experiment.icon className="w-16 h-16 text-orange-400" />}
-                {experiment.id === 'posnerCueing' && <experiment.icon className="w-16 h-16 text-amber-400" />}
-                {experiment.id === 'visualSearch' && <experiment.icon className="w-16 h-16 text-rose-400" />}
-                {experiment.id === 'CompositeFace' && <experiment.icon className="w-16 h-16 text-pink-400" />}
-                {experiment.id === 'wordSuperiority' && <experiment.icon className="w-16 h-16 text-teal-400" />}
+        {/* Category rows */}
+        <div className="divide-y divide-gray-800/60">
+          {CATEGORIES.map(cat => (
+            <div key={cat.name} className="flex gap-6 py-5">
+
+              {/* Category label */}
+              <div className="w-44 flex-shrink-0 pt-1">
+                <p className="text-xs font-bold tracking-widest text-gray-400">{cat.name}</p>
+                <p className="text-xs text-gray-600 mt-0.5" dir="rtl">{cat.nameHe}</p>
               </div>
 
-              <h2 className="text-2xl font-bold mb-2">{experiment.title}</h2>
-              <p className="text-muted text-sm mb-2">{experiment.description}</p>
-              <p className="text-muted text-sm" dir="rtl">{experiment.descriptionHe}</p>
+              {/* Experiment cards */}
+              <div className="flex flex-wrap gap-3 flex-1">
+                {cat.ids.length > 0 ? cat.ids.map(id => {
+                  const exp = expMap[id];
+                  return (
+                    <motion.button key={id}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => router.push(`/${id}`)}
+                      className="flex flex-col items-center gap-2 bg-card border border-border rounded-xl px-4 py-4 w-36 hover:border-emerald-400/40 transition-all"
+                    >
+                      <exp.icon className={`w-8 h-8 ${exp.color}`} />
+                      <div className="text-center">
+                        <p className="text-xs font-semibold leading-snug">{exp.title}</p>
+                        <p className="text-xs text-gray-500 leading-snug mt-0.5" dir="rtl">{exp.titleHe}</p>
+                      </div>
+                    </motion.button>
+                  );
+                }) : (
+                  <div className="flex items-center">
+                    <span className="text-xs text-gray-700 italic">— coming soon</span>
+                  </div>
+                )}
+              </div>
 
-              {!experiment.available && (
-                <p className="text-yellow-400 text-sm mt-4">Coming Soon</p>
-              )}
-            </motion.div>
+            </div>
           ))}
         </div>
-
-        <p className="mt-12 text-sm text-muted">
-          Select an experiment to begin
-        </p>
       </motion.div>
     </main>
   );

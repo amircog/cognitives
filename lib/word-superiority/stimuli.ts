@@ -151,6 +151,6 @@ export const CONDITION_LABELS: Record<Condition, { en: string; he: string }> = {
   'single-letter': { en: 'Single Letter', he: 'אות בודדת' },
 };
 
-export const DISPLAY_MS  = 200; // stimulus duration in ms
+export const DISPLAY_MS  = 150; // stimulus duration in ms
 export const MASK_MS     = 500;
 export const FIXATION_MS = 500;
