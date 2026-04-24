@@ -151,6 +151,6 @@ export const CONDITION_LABELS: Record<Condition, { en: string; he: string }> = {
   'single-letter': { en: 'Single Letter', he: 'אות בודדת' },
 };
 
-export const DISPLAY_MS  = 50;
+export const DISPLAY_MS  = 750;
 export const MASK_MS     = 500;
 export const FIXATION_MS = 500;
