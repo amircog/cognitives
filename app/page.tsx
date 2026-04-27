@@ -3,7 +3,8 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type } from 'lucide-react';
+import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type, Lock, LockOpen } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 
@@ -44,20 +45,59 @@ const CATEGORIES = [
 
 export default function HomePage() {
   const router = useRouter();
-  const [authed, setAuthed]   = useState(false);
-  const [pwInput, setPwInput] = useState('');
-  const [pwError, setPwError] = useState(false);
+  const [authed,   setAuthed]   = useState(false);
+  const [pwInput,  setPwInput]  = useState('');
+  const [pwError,  setPwError]  = useState(false);
+  const [locks,    setLocks]    = useState<Record<string, boolean>>({});
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
+  // Re-hydrate auth from session
   useEffect(() => {
-    if (sessionStorage.getItem('ss_home_authed') === '1') setAuthed(true);
+    if (sessionStorage.getItem('ss_home_authed') === '1') {
+      setAuthed(true);
+      loadLocks();
+    }
   }, []);
+
+  async function loadLocks() {
+    const sb = getSupabase();
+    if (!sb) return;
+    const { data } = await sb.from('experiment_locks').select('experiment_id, is_locked');
+    if (data) {
+      const map: Record<string, boolean> = {};
+      (data as { experiment_id: string; is_locked: boolean }[]).forEach(
+        row => { map[row.experiment_id] = row.is_locked; }
+      );
+      setLocks(map);
+    }
+  }
+
+  async function toggleLock(id: string) {
+    if (toggling[id]) return;
+    const newValue = !locks[id];
+    setToggling(t => ({ ...t, [id]: true }));
+    setLocks(l => ({ ...l, [id]: newValue }));           // optimistic update
+    const sb = getSupabase();
+    if (sb) {
+      const { error } = await sb.from('experiment_locks').upsert({
+        experiment_id: id,
+        is_locked:     newValue,
+        updated_at:    new Date().toISOString(),
+      });
+      if (error) setLocks(l => ({ ...l, [id]: !newValue })); // revert on failure
+    }
+    setToggling(t => ({ ...t, [id]: false }));
+  }
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     const hash = await sha256(pwInput);
     if (hash === PW_HASH) {
       sessionStorage.setItem('ss_home_authed', '1');
+      // Set session cookie so middleware skips lock checks for admin
+      document.cookie = 'cognitives_admin=1; path=/; SameSite=Strict';
       setAuthed(true);
+      loadLocks();
     } else {
       setPwError(true);
       setPwInput('');
@@ -127,20 +167,43 @@ export default function HomePage() {
               {/* Experiment cards */}
               <div className="flex flex-wrap gap-3 flex-1">
                 {cat.ids.length > 0 ? cat.ids.map(id => {
-                  const exp = expMap[id];
+                  const exp    = expMap[id];
+                  const locked = !!locks[id];
                   return (
-                    <motion.button key={id}
+                    <motion.div
+                      key={id}
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => router.push(`/${id}`)}
-                      className="flex flex-col items-center gap-2 bg-card border border-border rounded-xl px-4 py-4 w-36 hover:border-emerald-400/40 transition-all"
+                      className={`relative flex flex-col items-center gap-2 bg-card border rounded-xl px-4 py-4 w-36 transition-all
+                        ${locked ? 'border-gray-700/60 opacity-60' : 'border-border hover:border-emerald-400/40'}`}
                     >
-                      <exp.icon className={`w-8 h-8 ${exp.color}`} />
-                      <div className="text-center">
-                        <p className="text-xs font-semibold leading-snug">{exp.title}</p>
-                        <p className="text-xs text-gray-500 leading-snug mt-0.5" dir="rtl">{exp.titleHe}</p>
-                      </div>
-                    </motion.button>
+                      {/* Lock toggle — top-right corner */}
+                      <button
+                        onClick={() => toggleLock(id)}
+                        title={locked ? 'Unlock experiment' : 'Lock experiment'}
+                        className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-gray-700/60 transition-colors"
+                      >
+                        {toggling[id] ? (
+                          <div className="w-3 h-3 border border-gray-500 border-t-transparent rounded-full animate-spin" />
+                        ) : locked ? (
+                          <Lock className="w-3 h-3 text-amber-400" />
+                        ) : (
+                          <LockOpen className="w-3 h-3 text-gray-600" />
+                        )}
+                      </button>
+
+                      {/* Navigate to experiment */}
+                      <button
+                        onClick={() => router.push(`/${id}`)}
+                        className="flex flex-col items-center gap-2 w-full"
+                      >
+                        <exp.icon className={`w-8 h-8 ${exp.color}`} />
+                        <div className="text-center">
+                          <p className="text-xs font-semibold leading-snug">{exp.title}</p>
+                          <p className="text-xs text-gray-500 leading-snug mt-0.5" dir="rtl">{exp.titleHe}</p>
+                        </div>
+                      </button>
+                    </motion.div>
                   );
                 }) : (
                   <div className="flex items-center">
