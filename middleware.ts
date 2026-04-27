@@ -9,8 +9,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const segments = pathname.split('/').filter(Boolean);
 
-  // Only intercept exact landing pages — /slug with no sub-routes
-  if (segments.length !== 1 || !EXPERIMENT_SLUGS.has(segments[0])) {
+  // Must start with a known experiment slug
+  if (segments.length === 0 || !EXPERIMENT_SLUGS.has(segments[0])) {
+    return NextResponse.next();
+  }
+
+  // Teacher pages are never blocked — teacher should always have access
+  if (segments[segments.length - 1] === 'teacher') {
     return NextResponse.next();
   }
 
@@ -19,8 +24,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return NextResponse.next();
 
   try {
@@ -42,10 +47,14 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Only run on experiment landing pages (not sub-routes like /stroop/practice)
+// Match landing page AND all sub-routes (/practice, /experiment, /thanks, etc.)
+// Teacher pages are excluded inside the function above, not here.
 export const config = {
   matcher: [
-    '/stroop', '/drm', '/bouba-kiki', '/mentalRep', '/summaryStats',
-    '/posnerCueing', '/visualSearch', '/CompositeFace', '/wordSuperiority',
+    '/stroop/:path*',          '/drm/:path*',
+    '/bouba-kiki/:path*',      '/mentalRep/:path*',
+    '/summaryStats/:path*',    '/posnerCueing/:path*',
+    '/visualSearch/:path*',    '/CompositeFace/:path*',
+    '/wordSuperiority/:path*',
   ],
 };
