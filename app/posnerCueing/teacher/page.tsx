@@ -71,14 +71,23 @@ export default function PosnerTeacherPage() {
       const supabase = getSupabase();
       if (!supabase) throw new Error('Supabase not available');
 
-      const { data, error: fetchError } = await supabase
-        .from('posner_results')
-        .select('*')
-        .eq('is_practice', false)
-        .order('created_at', { ascending: true });
-
-      if (fetchError) throw fetchError;
-      if (!data || data.length === 0) {
+      const allData: unknown[] = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error: fetchError } = await supabase
+          .from('posner_results')
+          .select('*')
+          .eq('is_practice', false)
+          .order('created_at', { ascending: true })
+          .range(from, from + 999);
+        if (fetchError) throw fetchError;
+        if (!page || page.length === 0) break;
+        allData.push(...page);
+        if (page.length < 1000) break;
+        from += 1000;
+      }
+      const data = allData;
+      if (data.length === 0) {
         setError('No data available yet.');
         setLoading(false);
         return;

@@ -10,7 +10,7 @@ async function sha256(str: string): Promise<string> {
 }
 import { motion } from 'framer-motion';
 import { GraduationCap, RefreshCw, BarChart3 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { DRMResult } from '@/types/drm';
 import {
   BarChart,
@@ -66,14 +66,26 @@ export default function DRMTeacherDashboard() {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('drm_results')
-        .select('*')
-        .order('created_at', { ascending: true });
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase not available');
 
-      if (fetchError) throw fetchError;
+      const allData: unknown[] = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error: fetchError } = await supabase
+          .from('drm_results')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .range(from, from + 999);
+        if (fetchError) throw fetchError;
+        if (!page || page.length === 0) break;
+        allData.push(...page);
+        if (page.length < 1000) break;
+        from += 1000;
+      }
+      const data = allData;
 
-      if (!data || data.length === 0) {
+      if (data.length === 0) {
         setError('No data available yet. Waiting for participants to complete the experiment.');
         setLoading(false);
         return;

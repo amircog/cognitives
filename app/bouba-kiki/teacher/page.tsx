@@ -79,20 +79,24 @@ export default function BoubaKikiTeacher() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('bouba_kiki_results')
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error loading results:', error);
-      setLoading(false);
-      return;
+    const allData: unknown[] = [];
+    let from = 0;
+    while (true) {
+      const { data: page, error } = await supabase
+        .from('bouba_kiki_results')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .range(from, from + 999);
+      if (error) { console.error('Error loading results:', error); break; }
+      if (!page || page.length === 0) break;
+      allData.push(...page);
+      if (page.length < 1000) break;
+      from += 1000;
     }
 
-    if (data) {
-      setAllResults(data);
-      processParticipants(data);
+    if (allData.length > 0) {
+      setAllResults(allData as TrialResult[]);
+      processParticipants(allData as TrialResult[]);
     }
 
     setLoading(false);
