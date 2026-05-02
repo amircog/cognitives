@@ -340,7 +340,7 @@ export default function VisualSearchTeacherPage() {
             <GraduationCap className="w-10 h-10 text-rose-400" />
             <div>
               <h1 className="text-4xl font-bold tracking-tight">Teacher Dashboard</h1>
-              <p className="text-muted mt-1">Visual Search – Aggregate Results</p>
+              <p className="text-muted mt-1">Visual Search – Aggregate Results v2</p>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
