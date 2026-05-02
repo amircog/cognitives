@@ -19,6 +19,39 @@ type Stage =
 const ITEM_COLOR: Record<string, string> = { red: '#ef4444', blue: '#3b82f6' };
 const DISPLAY_CENTER = 300;
 
+const TX = {
+  he: {
+    loading: 'טוען...',
+    practiceLabel: 'תרגול',
+    practiceEnd: '!תרגול הסתיים',
+    practiceEndBody: 'כעת יתחיל הניסוי האמיתי.',
+    trials: '128 ניסיונות',
+    target: 'היעד:',
+    redT: 'T אדומה',
+    blueT: 'T כחולה',
+    startMain: 'התחל',
+    wrong: '!תשובה שגויה',
+    timeout: '!זמן אזל',
+    present: 'נמצא ✓',
+    absent: 'לא נמצא ✗',
+  },
+  en: {
+    loading: 'Loading...',
+    practiceLabel: 'Practice',
+    practiceEnd: 'Practice Complete!',
+    practiceEndBody: 'The main experiment is about to begin.',
+    trials: '128 trials',
+    target: 'Target:',
+    redT: 'Red T',
+    blueT: 'Blue T',
+    startMain: 'Start',
+    wrong: 'Incorrect!',
+    timeout: "Time's up!",
+    present: 'Present ✓',
+    absent: 'Absent ✗',
+  },
+} as const;
+
 export default function VisualSearchExperimentPage() {
   const router = useRouter();
 
@@ -29,6 +62,7 @@ export default function VisualSearchExperimentPage() {
   const [blockProgress, setBlockProgress] = useState(0);
   const [totalMainTrials, setTotalMainTrials] = useState(128);
   const [isPracticeUI, setIsPracticeUI] = useState(true);
+  const [lang, setLang] = useState<'he' | 'en'>('he');
   // displayScale: start at 0.8 to avoid initial overflow flash on mobile
   const [displayScale, setDisplayScale] = useState(0.8);
 
@@ -135,7 +169,7 @@ export default function VisualSearchExperimentPage() {
           if (stageRef.current !== 'search') return;
           saveResult(trial, 'timeout', false, 5000);
           if (isPracticeRef.current) {
-            setFeedbackMsg('!זמן אזל');
+            setFeedbackMsg(TX[lang].timeout);
             setStageSync('feedback');
             timeoutRef.current = setTimeout(() => {
               if (stageRef.current !== 'feedback') return;
@@ -172,7 +206,7 @@ export default function VisualSearchExperimentPage() {
     saveResult(trial, response, correct, rt);
 
     if (!correct && isPracticeRef.current) {
-      setFeedbackMsg('!תשובה שגויה');
+      setFeedbackMsg(TX[lang].wrong);
       setStageSync('feedback');
       timeoutRef.current = setTimeout(() => {
         if (stageRef.current !== 'feedback') return;
@@ -190,6 +224,8 @@ export default function VisualSearchExperimentPage() {
     const sid = sessionStorage.getItem('vs_session_id') ?? '';
     const name = sessionStorage.getItem('vs_participant_name') ?? '';
     if (!sid) { router.push('/visualSearch'); return; }
+    const savedLang = sessionStorage.getItem('vs_language') as 'he' | 'en' | null;
+    if (savedLang) setLang(savedLang);
     sessionIdRef.current = sid;
     participantNameRef.current = name;
 
@@ -233,11 +269,13 @@ export default function VisualSearchExperimentPage() {
   const progressPct = totalMainTrials > 0 ? (blockProgress / totalMainTrials) * 100 : 0;
   const trial = currentTrial;
 
+  const tx = TX[lang];
+
   // ── Loading ──────────────────────────────────────────────────────────────
   if (stage === 'loading') {
     return (
-      <main className="bg-zinc-900 flex items-center justify-center" style={{ height: '100dvh' }}>
-        <p className="text-white text-xl">טוען...</p>
+      <main className="bg-[#0f172a] flex items-center justify-center" style={{ height: '100dvh' }}>
+        <p className="text-white text-xl">{tx.loading}</p>
       </main>
     );
   }
@@ -246,23 +284,23 @@ export default function VisualSearchExperimentPage() {
   if (stage === 'practice_break') {
     const tc = targetColorRef.current;
     return (
-      <main className="bg-zinc-900 flex flex-col items-center justify-center gap-4 p-6" style={{ height: '100dvh' }}>
-        <div className="text-center" dir="rtl">
+      <main className="bg-[#0f172a] flex flex-col items-center justify-center gap-4 p-6" style={{ height: '100dvh' }}>
+        <div className="text-center" dir={lang === 'he' ? 'rtl' : 'ltr'}>
           <p className="text-3xl mb-3">✓</p>
-          <h2 className="text-2xl font-bold text-rose-400 mb-2">!תרגול הסתיים</h2>
-          <p className="text-white text-base mb-1">כעת יתחיל הניסוי האמיתי.</p>
-          <p className="text-zinc-400 text-sm mb-2">128 ניסיונות</p>
+          <h2 className="text-2xl font-bold text-rose-400 mb-2">{tx.practiceEnd}</h2>
+          <p className="text-white text-base mb-1">{tx.practiceEndBody}</p>
+          <p className="text-zinc-400 text-sm mb-2">{tx.trials}</p>
           <p className="text-zinc-300 text-sm">
-            היעד:{' '}
+            {tx.target}{' '}
             <span style={{ color: ITEM_COLOR[tc], fontWeight: 'bold', fontFamily: 'monospace', fontSize: 18 }}>T</span>
-            {' '}({tc === 'red' ? 'T אדומה' : 'T כחולה'})
+            {' '}({tc === 'red' ? tx.redT : tx.blueT})
           </p>
         </div>
         <button
           onClick={startMainTrials}
           className="px-10 py-3 bg-rose-500 hover:bg-rose-400 text-white font-bold text-lg rounded-xl transition-colors touch-manipulation"
         >
-          התחל
+          {tx.startMain}
         </button>
       </main>
     );
@@ -270,7 +308,7 @@ export default function VisualSearchExperimentPage() {
 
   // ── Main experiment layout ───────────────────────────────────────────────
   return (
-    <main className="bg-zinc-900 flex flex-col select-none" style={{ height: '100dvh', touchAction: 'manipulation' }}>
+    <main className="bg-[#0f172a] flex flex-col select-none" style={{ height: '100dvh', touchAction: 'manipulation' }}>
 
       {/* Top bar: progress / practice label */}
       <div className="flex-shrink-0" style={{ height: 24 }}>
@@ -282,7 +320,7 @@ export default function VisualSearchExperimentPage() {
         {isPracticeUI && (
           <div className="flex justify-center pt-1">
             <span className="text-xs text-rose-400 bg-zinc-800 px-3 py-0.5 rounded-full border border-rose-400/30">
-              תרגול
+              {tx.practiceLabel}
             </span>
           </div>
         )}
@@ -373,7 +411,7 @@ export default function VisualSearchExperimentPage() {
                      flex items-center justify-center"
           style={{ height: 64 }}
         >
-          נמצא ✓
+          {tx.present}
         </button>
         <button
           onPointerDown={(e) => { e.preventDefault(); handleResponse('absent'); }}
@@ -382,7 +420,7 @@ export default function VisualSearchExperimentPage() {
                      flex items-center justify-center"
           style={{ height: 64 }}
         >
-          לא נמצא ✗
+          {tx.absent}
         </button>
       </div>
     </main>

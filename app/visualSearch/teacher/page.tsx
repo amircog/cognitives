@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, FormEvent, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer, Legend, ErrorBar,
 } from 'recharts';
-import { GraduationCap, RefreshCw, Search } from 'lucide-react';
+import { GraduationCap, RefreshCw, Search, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
@@ -16,28 +17,55 @@ async function sha256(str: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function sem(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance / values.length);
+}
+
 const SS_LEVELS = [1, 2, 4, 8];
 const DIST_BINS = [
-  { label: 'Near\n0–100', min: 0, max: 100 },
-  { label: 'Mid\n100–200', min: 100, max: 200 },
-  { label: 'Far\n200–300', min: 200, max: 300 },
-  { label: 'Edge\n300+', min: 300, max: Infinity },
+  { label: 'Near 0–100', min: 0, max: 100 },
+  { label: 'Mid 100–200', min: 100, max: 200 },
+  { label: 'Far 200–300', min: 200, max: 300 },
+  { label: 'Edge 300+', min: 300, max: Infinity },
 ];
+
+type Row = {
+  session_id: string;
+  participant_name: string | null;
+  trial_number: number | null;
+  target_set_size: number;
+  distractor_set_size: number;
+  target_present: boolean;
+  target_color: string | null;
+  response: string | null;
+  correct: boolean;
+  rt_ms: number | null;
+  target_distance_from_center: number | null;
+  is_practice: boolean;
+  created_at: string;
+};
 
 interface SetSizePoint {
   setSize: number;
   rt: number | null;
+  rtSem: number | null;
   accuracy: number | null;
+  accuracySem: number | null;
 }
 
 interface PresenceContrastPoint {
   setSize: number;
-  contrast: number | null; // present RT - absent RT
+  contrast: number | null;
+  contrastSem: number | null;
 }
 
 interface DistanceBinPoint {
   label: string;
   rt: number | null;
+  rtSem: number | null;
 }
 
 interface AggStats {
@@ -46,23 +74,32 @@ interface AggStats {
   overallAccuracy: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function meanRT(rows: any[], filter: (r: any) => boolean): number | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const hits = rows.filter(filter).filter((r: any) => r.rt_ms != null);
-  return hits.length > 0
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? Math.round(hits.reduce((s: number, r: any) => s + (r.rt_ms ?? 0), 0) / hits.length)
-    : null;
-}
+const chartStyle = { background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 };
+const axisStyle = { fill: '#a1a1aa', fontSize: 11 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function accuracy(rows: any[], filter: (r: any) => boolean): number | null {
-  const filtered = rows.filter(filter);
-  return filtered.length > 0
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? Math.round((filtered.filter((r: any) => r.correct).length / filtered.length) * 100)
-    : null;
+function ChartCard({ title, subtitle, children }: {
+  title: string;
+  subtitle?: string;
+  children: (revealed: boolean) => ReactNode;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 mb-6">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-200">{title}</h3>
+          {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
+        </div>
+        <button
+          onClick={() => setRevealed(r => !r)}
+          className="text-xs px-3 py-1 rounded-full border border-gray-600 text-gray-400 hover:border-rose-400 hover:text-rose-400 transition-colors flex-shrink-0 ml-4"
+        >
+          {revealed ? 'Hide' : 'Reveal'}
+        </button>
+      </div>
+      {children(revealed)}
+    </div>
+  );
 }
 
 export default function VisualSearchTeacherPage() {
@@ -76,6 +113,7 @@ export default function VisualSearchTeacherPage() {
   const [distractorSSData, setDistractorSSData] = useState<SetSizePoint[]>([]);
   const [contrastData, setContrastData] = useState<PresenceContrastPoint[]>([]);
   const [distanceData, setDistanceData] = useState<DistanceBinPoint[]>([]);
+  const [rawRows, setRawRows] = useState<Row[]>([]);
 
   useEffect(() => {
     if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
@@ -115,73 +153,96 @@ export default function VisualSearchTeacherPage() {
         if (page.length < 1000) break;
         from += 1000;
       }
-      const data = allData;
-      if (data.length === 0) {
+      const rows = allData as Row[];
+      setRawRows(rows);
+
+      if (rows.length === 0) {
         setError('No data available yet.');
         setLoading(false);
         return;
       }
 
-      type Row = {
-        session_id: string;
-        target_set_size: number;
-        distractor_set_size: number;
-        target_present: boolean;
-        correct: boolean;
-        rt_ms: number | null;
-        target_distance_from_center: number | null;
-      };
-      const rows = data as Row[];
-
-      const sessions = new Set(rows.map(r => r.session_id));
-      const correctRows = rows.filter(r => r.correct);
+      const sessionList = Array.from(new Set(rows.map(r => r.session_id)));
 
       setAggStats({
-        totalParticipants: sessions.size,
+        totalParticipants: sessionList.length,
         totalTrials: rows.length,
         overallAccuracy: Math.round((rows.filter(r => r.correct).length / rows.length) * 100),
       });
 
       // ── Chart (a): RT & accuracy vs target set size ───────────────────────
-      const tSSPoints: SetSizePoint[] = SS_LEVELS.map((ss) => ({
-        setSize: ss,
-        rt: meanRT(rows, r => r.target_set_size === ss && r.rt_ms != null),
-        accuracy: accuracy(rows, r => r.target_set_size === ss),
-      }));
+      const tSSPoints: SetSizePoint[] = SS_LEVELS.map(ss => {
+        const sessionRTs = sessionList.map(sid => {
+          const sRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && r.correct && r.rt_ms != null);
+          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+        }).filter((v): v is number => v !== null);
+        const sessionAccs = sessionList.map(sid => {
+          const sRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss);
+          return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
+        }).filter((v): v is number => v !== null);
+        return {
+          setSize: ss,
+          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+          rtSem: Math.round(sem(sessionRTs)),
+          accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
+          accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
+        };
+      });
       setTargetSSData(tSSPoints);
 
       // ── Chart (b): RT & accuracy vs distractor set size ───────────────────
-      const dSSPoints: SetSizePoint[] = SS_LEVELS.map((ss) => ({
-        setSize: ss,
-        rt: meanRT(rows, r => r.distractor_set_size === ss && r.rt_ms != null),
-        accuracy: accuracy(rows, r => r.distractor_set_size === ss),
-      }));
+      const dSSPoints: SetSizePoint[] = SS_LEVELS.map(ss => {
+        const sessionRTs = sessionList.map(sid => {
+          const sRows = rows.filter(r => r.session_id === sid && r.distractor_set_size === ss && r.correct && r.rt_ms != null);
+          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+        }).filter((v): v is number => v !== null);
+        const sessionAccs = sessionList.map(sid => {
+          const sRows = rows.filter(r => r.session_id === sid && r.distractor_set_size === ss);
+          return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
+        }).filter((v): v is number => v !== null);
+        return {
+          setSize: ss,
+          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+          rtSem: Math.round(sem(sessionRTs)),
+          accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
+          accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
+        };
+      });
       setDistractorSSData(dSSPoints);
 
       // ── Chart (c): present-RT minus absent-RT vs target set size ──────────
-      const cPoints: PresenceContrastPoint[] = SS_LEVELS.map((ss) => {
-        const presentRT = meanRT(rows, r => r.target_set_size === ss && r.target_present && r.rt_ms != null);
-        const absentRT = meanRT(rows, r => r.target_set_size === ss && !r.target_present && r.rt_ms != null);
+      const cPoints: PresenceContrastPoint[] = SS_LEVELS.map(ss => {
+        const sessionContrasts = sessionList.map(sid => {
+          const presRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && r.target_present && r.correct && r.rt_ms != null);
+          const absRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && !r.target_present && r.correct && r.rt_ms != null);
+          if (presRows.length === 0 || absRows.length === 0) return null;
+          const presRT = presRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / presRows.length;
+          const absRT = absRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / absRows.length;
+          return presRT - absRT;
+        }).filter((v): v is number => v !== null);
         return {
           setSize: ss,
-          contrast:
-            presentRT != null && absentRT != null ? presentRT - absentRT : null,
+          contrast: sessionContrasts.length > 0 ? Math.round(sessionContrasts.reduce((a, b) => a + b) / sessionContrasts.length) : null,
+          contrastSem: Math.round(sem(sessionContrasts)),
         };
       });
       setContrastData(cPoints);
 
       // ── Chart (d): present-RT vs target distance from center ─────────────
-      const presentRows = correctRows.filter(r => r.target_present && r.rt_ms != null && r.target_distance_from_center != null);
       const dBins: DistanceBinPoint[] = DIST_BINS.map(({ label, min, max }) => {
-        const binRows = presentRows.filter(r => {
-          const d = r.target_distance_from_center ?? 0;
-          return d >= min && d < max;
-        });
+        const sessionRTs = sessionList.map(sid => {
+          const binRows = rows.filter(r =>
+            r.session_id === sid && r.target_present && r.correct && r.rt_ms != null &&
+            r.target_distance_from_center != null &&
+            (r.target_distance_from_center ?? 0) >= min &&
+            (r.target_distance_from_center ?? 0) < max
+          );
+          return binRows.length > 0 ? binRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / binRows.length : null;
+        }).filter((v): v is number => v !== null);
         return {
-          label: label.replace('\n', ' '),
-          rt: binRows.length > 0
-            ? Math.round(binRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / binRows.length)
-            : null,
+          label,
+          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+          rtSem: Math.round(sem(sessionRTs)),
         };
       });
       setDistanceData(dBins);
@@ -197,6 +258,27 @@ export default function VisualSearchTeacherPage() {
   useEffect(() => {
     if (authed) fetchData();
   }, [authed, fetchData]);
+
+  function downloadCSV() {
+    if (rawRows.length === 0) return;
+    const headers = Object.keys(rawRows[0]).join(',');
+    const csvRows = rawRows.map(r =>
+      Object.values(r as unknown as Record<string, unknown>)
+        .map(v => {
+          if (v === null || v === undefined) return '';
+          const s = String(v);
+          return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+        })
+        .join(',')
+    );
+    const blob = new Blob([headers + '\n' + csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'visual_search_results.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // ── Auth screen ──────────────────────────────────────────────────────────
   if (!authed) {
@@ -249,45 +331,6 @@ export default function VisualSearchTeacherPage() {
     );
   }
 
-  const chartStyle = { background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 };
-  const axisStyle = { fill: '#a1a1aa', fontSize: 11 };
-
-  const SetSizeChart = ({
-    data, title, subtitle,
-  }: { data: SetSizePoint[]; title: string; subtitle: string }) => (
-    <div className="bg-card border border-border rounded-xl p-6 mb-6">
-      <h2 className="text-xl font-bold mb-1">{title}</h2>
-      <p className="text-sm text-muted mb-4">{subtitle}</p>
-      <ResponsiveContainer width="100%" height={280}>
-        <ComposedChart data={data} margin={{ left: 10, right: 40, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-          <XAxis
-            dataKey="setSize"
-            tick={axisStyle}
-            label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: { fill: '#a1a1aa', fontSize: 11 } }}
-          />
-          <YAxis
-            yAxisId="rt"
-            orientation="left"
-            tick={axisStyle}
-            label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 11 } }}
-          />
-          <YAxis
-            yAxisId="acc"
-            orientation="right"
-            domain={[0, 100]}
-            tick={axisStyle}
-            label={{ value: 'Accuracy (%)', angle: 90, position: 'insideRight', style: { fill: '#a1a1aa', fontSize: 11 } }}
-          />
-          <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [v, ''] : ['N/A', ''] as any} />
-          <Legend wrapperStyle={{ color: '#a1a1aa', paddingTop: 8 }} />
-          <Bar yAxisId="rt" dataKey="rt" name="RT (ms)" fill="#3b82f6" opacity={0.7} radius={[3, 3, 0, 0]} />
-          <Line yAxisId="acc" type="monotone" dataKey="accuracy" name="Accuracy (%)" stroke="#fb7185" strokeWidth={2.5} dot={{ r: 5, fill: '#fb7185' }} connectNulls />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-5xl mx-auto">
@@ -300,16 +343,28 @@ export default function VisualSearchTeacherPage() {
               <p className="text-muted mt-1">Visual Search – Aggregate Results</p>
             </div>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={fetchData}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white
-                       font-semibold rounded-lg hover:bg-rose-400 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Data
-          </motion.button>
+          <div className="flex gap-3 flex-wrap">
+            {rawRows.length > 0 && (
+              <button
+                onClick={downloadCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-gray-300
+                           font-semibold rounded-lg hover:border-rose-400 hover:text-rose-400 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download CSV
+              </button>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={fetchData}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white
+                         font-semibold rounded-lg hover:bg-rose-400 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh Data
+            </motion.button>
+          </div>
         </div>
 
         {error && (
@@ -340,71 +395,111 @@ export default function VisualSearchTeacherPage() {
             </div>
 
             {/* Chart (a): RT & accuracy vs target set size */}
-            <SetSizeChart
-              data={targetSSData}
+            <ChartCard
               title="(a) RT & Accuracy vs Target Set Size"
-              subtitle="Target-colored items in display (including target T when present). Harder to find T among more same-color L's."
-            />
+              subtitle="Target-colored items in display (including target T when present). Error bars = SEM across participants."
+            >
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={targetSSData} margin={{ left: 10, right: 40, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                    <XAxis dataKey="setSize" tick={axisStyle} label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+                    <YAxis yAxisId="rt" orientation="left" tick={axisStyle} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: axisStyle }} />
+                    <YAxis yAxisId="acc" orientation="right" domain={[0, 100]} tick={axisStyle} label={{ value: 'Accuracy (%)', angle: 90, position: 'insideRight', style: axisStyle }} />
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [v, ''] : ['N/A', '']} />
+                    <Legend verticalAlign="top" wrapperStyle={{ color: '#a1a1aa', paddingBottom: 8 }} />
+                    {revealed && (
+                      <>
+                        <Bar yAxisId="rt" dataKey="rt" name="RT (ms)" fill="#3b82f6" opacity={0.7} radius={[3, 3, 0, 0]}>
+                          <ErrorBar dataKey="rtSem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Bar>
+                        <Line yAxisId="acc" type="monotone" dataKey="accuracy" name="Accuracy (%)" stroke="#fb7185" strokeWidth={2.5} dot={{ r: 5, fill: '#fb7185' }} connectNulls />
+                      </>
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
 
             {/* Chart (b): RT & accuracy vs distractor set size */}
-            <SetSizeChart
-              data={distractorSSData}
+            <ChartCard
               title="(b) RT & Accuracy vs Distractor Set Size"
-              subtitle="Number of opposite-color T's. More T's of the wrong color = more distractors to reject."
-            />
+              subtitle="Number of opposite-color T's. More T's of the wrong color = more distractors to reject. Error bars = SEM."
+            >
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={distractorSSData} margin={{ left: 10, right: 40, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                    <XAxis dataKey="setSize" tick={axisStyle} label={{ value: 'Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+                    <YAxis yAxisId="rt" orientation="left" tick={axisStyle} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: axisStyle }} />
+                    <YAxis yAxisId="acc" orientation="right" domain={[0, 100]} tick={axisStyle} label={{ value: 'Accuracy (%)', angle: 90, position: 'insideRight', style: axisStyle }} />
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [v, ''] : ['N/A', '']} />
+                    <Legend verticalAlign="top" wrapperStyle={{ color: '#a1a1aa', paddingBottom: 8 }} />
+                    {revealed && (
+                      <>
+                        <Bar yAxisId="rt" dataKey="rt" name="RT (ms)" fill="#3b82f6" opacity={0.7} radius={[3, 3, 0, 0]}>
+                          <ErrorBar dataKey="rtSem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Bar>
+                        <Line yAxisId="acc" type="monotone" dataKey="accuracy" name="Accuracy (%)" stroke="#fb7185" strokeWidth={2.5} dot={{ r: 5, fill: '#fb7185' }} connectNulls />
+                      </>
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
 
             {/* Chart (c): present-RT minus absent-RT vs target set size */}
             {contrastData.some(d => d.contrast != null) && (
-              <div className="bg-card border border-border rounded-xl p-6 mb-6">
-                <h2 className="text-xl font-bold mb-1">(c) Search Cost vs Target Set Size</h2>
-                <p className="text-sm text-muted mb-4">
-                  Present-RT minus Absent-RT at each target set size. Positive = present trials slower than absent.
-                </p>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ComposedChart data={contrastData} margin={{ left: 10, right: 20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                    <XAxis
-                      dataKey="setSize"
-                      tick={axisStyle}
-                      label={{ value: 'Target Set Size', position: 'insideBottom', offset: -10, style: axisStyle }}
-                    />
-                    <YAxis
-                      tick={axisStyle}
-                      label={{ value: 'Present − Absent RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 10 } }}
-                    />
-                    <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [`${v}ms`, 'Contrast'] : ['N/A', 'Contrast'] as any} />
-                    <Bar dataKey="contrast" name="Present − Absent (ms)" fill="#f97316" radius={[4, 4, 0, 0]} />
-                    <Line type="monotone" dataKey="contrast" stroke="#fb923c" strokeWidth={2} dot={{ r: 4, fill: '#fb923c' }} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartCard
+                title="(c) Search Cost vs Target Set Size"
+                subtitle="Present-RT minus Absent-RT at each target set size. Positive = present trials slower. Error bars = SEM."
+              >
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={contrastData} margin={{ left: 10, right: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                      <XAxis dataKey="setSize" tick={axisStyle} label={{ value: 'Target Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+                      <YAxis tick={axisStyle} label={{ value: 'Present − Absent RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 10 } }} />
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [`${v}ms`, 'Contrast'] : ['N/A', 'Contrast']} />
+                      <Legend verticalAlign="top" wrapperStyle={{ color: '#a1a1aa', paddingBottom: 8 }} />
+                      {revealed && (
+                        <Bar dataKey="contrast" name="Present − Absent (ms)" fill="#f97316" radius={[4, 4, 0, 0]}>
+                          <ErrorBar dataKey="contrastSem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Bar>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
             )}
 
             {/* Chart (d): present-RT vs target distance from center */}
             {distanceData.some(d => d.rt != null) && (
-              <div className="bg-card border border-border rounded-xl p-6">
-                <h2 className="text-xl font-bold mb-1">(d) Present-RT vs Target Distance from Center</h2>
-                <p className="text-sm text-muted mb-4">
-                  Correct target-present trials. Targets near fixation (center) should be detected faster.
-                </p>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ComposedChart data={distanceData} margin={{ left: 10, right: 20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                    <XAxis
-                      dataKey="label"
-                      tick={axisStyle}
-                      label={{ value: 'Distance from Center (px)', position: 'insideBottom', offset: -10, style: axisStyle }}
-                    />
-                    <YAxis
-                      tick={axisStyle}
-                      label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 12 } }}
-                    />
-                    <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [`${v}ms`, 'Avg RT'] : ['N/A', 'Avg RT'] as any} />
-                    <Bar dataKey="rt" name="RT (ms)" fill="#a855f7" radius={[4, 4, 0, 0]} opacity={0.8} />
-                    <Line type="monotone" dataKey="rt" stroke="#c084fc" strokeWidth={2.5} dot={{ r: 5, fill: '#c084fc' }} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartCard
+                title="(d) Present-RT vs Target Distance from Center"
+                subtitle="Correct target-present trials. Targets near fixation should be detected faster. Error bars = SEM."
+              >
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={distanceData} margin={{ left: 10, right: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                      <XAxis dataKey="label" tick={axisStyle} label={{ value: 'Distance from Center (px)', position: 'insideBottom', offset: -10, style: axisStyle }} />
+                      <YAxis tick={axisStyle} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 12 } }} />
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [`${v}ms`, 'Avg RT'] : ['N/A', 'Avg RT']} />
+                      <Legend verticalAlign="top" wrapperStyle={{ color: '#a1a1aa', paddingBottom: 8 }} />
+                      {revealed && (
+                        <Bar dataKey="rt" name="RT (ms)" fill="#a855f7" radius={[4, 4, 0, 0]} opacity={0.8}>
+                          <ErrorBar dataKey="rtSem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Bar>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
             )}
           </>
         )}
