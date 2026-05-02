@@ -134,16 +134,24 @@ export default function VisualSearchExperimentPage() {
         timeoutRef.current = setTimeout(() => {
           if (stageRef.current !== 'search') return;
           saveResult(trial, 'timeout', false, 5000);
-          setFeedbackMsg('!זמן אזל');
-          setStageSync('feedback');
-          timeoutRef.current = setTimeout(() => {
-            if (stageRef.current !== 'feedback') return;
+          if (isPracticeRef.current) {
+            setFeedbackMsg('!זמן אזל');
+            setStageSync('feedback');
+            timeoutRef.current = setTimeout(() => {
+              if (stageRef.current !== 'feedback') return;
+              setStageSync('iti');
+              timeoutRef.current = setTimeout(() => {
+                if (stageRef.current !== 'iti') return;
+                advanceTrial();
+              }, 500);
+            }, 500);
+          } else {
             setStageSync('iti');
             timeoutRef.current = setTimeout(() => {
               if (stageRef.current !== 'iti') return;
               advanceTrial();
             }, 500);
-          }, 500);
+          }
         }, 5000);
       }, 200);
     }, 500);
@@ -163,7 +171,7 @@ export default function VisualSearchExperimentPage() {
 
     saveResult(trial, response, correct, rt);
 
-    if (!correct) {
+    if (!correct && isPracticeRef.current) {
       setFeedbackMsg('!תשובה שגויה');
       setStageSync('feedback');
       timeoutRef.current = setTimeout(() => {
@@ -176,16 +184,6 @@ export default function VisualSearchExperimentPage() {
       timeoutRef.current = setTimeout(() => { if (stageRef.current !== 'iti') return; advanceTrial(); }, 500);
     }
   }, [advanceTrial, saveResult, setStageSync]);
-
-  // ── Keyboard ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === 'KeyL') { e.preventDefault(); handleResponse('present'); }
-      else if (e.code === 'KeyA') { e.preventDefault(); handleResponse('absent'); }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [handleResponse]);
 
   // ── Initialise ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -238,7 +236,7 @@ export default function VisualSearchExperimentPage() {
   // ── Loading ──────────────────────────────────────────────────────────────
   if (stage === 'loading') {
     return (
-      <main className="min-h-screen bg-zinc-900 flex items-center justify-center">
+      <main className="bg-zinc-900 flex items-center justify-center" style={{ height: '100dvh' }}>
         <p className="text-white text-xl">טוען...</p>
       </main>
     );
@@ -248,12 +246,12 @@ export default function VisualSearchExperimentPage() {
   if (stage === 'practice_break') {
     const tc = targetColorRef.current;
     return (
-      <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center gap-8 p-8">
+      <main className="bg-zinc-900 flex flex-col items-center justify-center gap-4 p-6" style={{ height: '100dvh' }}>
         <div className="text-center" dir="rtl">
-          <p className="text-4xl mb-4">✓</p>
-          <h2 className="text-3xl font-bold text-rose-400 mb-3">!תרגול הסתיים</h2>
-          <p className="text-white text-lg mb-2">כעת יתחיל הניסוי האמיתי.</p>
-          <p className="text-zinc-400 text-sm mb-3">128 ניסיונות</p>
+          <p className="text-3xl mb-3">✓</p>
+          <h2 className="text-2xl font-bold text-rose-400 mb-2">!תרגול הסתיים</h2>
+          <p className="text-white text-base mb-1">כעת יתחיל הניסוי האמיתי.</p>
+          <p className="text-zinc-400 text-sm mb-2">128 ניסיונות</p>
           <p className="text-zinc-300 text-sm">
             היעד:{' '}
             <span style={{ color: ITEM_COLOR[tc], fontWeight: 'bold', fontFamily: 'monospace', fontSize: 18 }}>T</span>
@@ -262,7 +260,7 @@ export default function VisualSearchExperimentPage() {
         </div>
         <button
           onClick={startMainTrials}
-          className="px-10 py-4 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xl rounded-xl transition-colors touch-manipulation"
+          className="px-10 py-3 bg-rose-500 hover:bg-rose-400 text-white font-bold text-lg rounded-xl transition-colors touch-manipulation"
         >
           התחל
         </button>
@@ -372,21 +370,19 @@ export default function VisualSearchExperimentPage() {
           onPointerDown={(e) => { e.preventDefault(); handleResponse('present'); }}
           className="flex-1 max-w-[170px] bg-emerald-600 text-white font-bold rounded-2xl
                      shadow-lg active:scale-95 transition-transform touch-manipulation select-none
-                     flex flex-col items-center justify-center"
+                     flex items-center justify-center"
           style={{ height: 64 }}
         >
-          <span className="text-lg leading-tight">נמצא ✓</span>
-          <span className="text-xs opacity-60">L</span>
+          נמצא ✓
         </button>
         <button
           onPointerDown={(e) => { e.preventDefault(); handleResponse('absent'); }}
           className="flex-1 max-w-[170px] bg-rose-600 text-white font-bold rounded-2xl
                      shadow-lg active:scale-95 transition-transform touch-manipulation select-none
-                     flex flex-col items-center justify-center"
+                     flex items-center justify-center"
           style={{ height: 64 }}
         >
-          <span className="text-lg leading-tight">לא נמצא ✗</span>
-          <span className="text-xs opacity-60">A</span>
+          לא נמצא ✗
         </button>
       </div>
     </main>

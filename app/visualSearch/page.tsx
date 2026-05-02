@@ -82,28 +82,13 @@ export default function VisualSearchIntroPage() {
           <ol className="space-y-3 text-muted list-decimal list-inside">
             <li>בניסוי זה תחפשו את האות T בצבע שמוצג למעלה בין אותיות אחרות על המסך.</li>
             <li>
-              לחצו{' '}
-              <kbd className="px-2 py-0.5 bg-background rounded text-foreground text-sm font-mono">L</kbd>{' '}
-              או כפתור <strong className="text-foreground">נמצא</strong> אם T בצבע היעד נמצאת על המסך.
+              לחצו על כפתור <strong className="text-foreground">נמצא ✓</strong> אם T בצבע היעד נמצאת על המסך.
             </li>
             <li>
-              לחצו{' '}
-              <kbd className="px-2 py-0.5 bg-background rounded text-foreground text-sm font-mono">A</kbd>{' '}
-              או כפתור <strong className="text-foreground">לא נמצא</strong> אם T בצבע היעד אינה נמצאת.
+              לחצו על כפתור <strong className="text-foreground">לא נמצא ✗</strong> אם T בצבע היעד אינה נמצאת.
             </li>
             <li>נסו להיות מהירים ומדויקים ככל האפשר.</li>
           </ol>
-
-          <div className="mt-6 pt-4 border-t border-border flex items-center justify-end gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <kbd className="px-3 py-1.5 bg-background rounded text-foreground font-mono text-base font-bold">L</kbd>
-              <span className="text-muted">= נמצא</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <kbd className="px-3 py-1.5 bg-background rounded text-foreground font-mono text-base font-bold">A</kbd>
-              <span className="text-muted">= לא נמצא</span>
-            </div>
-          </div>
         </div>
 
         <div className="w-full max-w-md mb-6 mx-auto" dir="rtl">
