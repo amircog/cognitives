@@ -86,7 +86,8 @@ export default function PosnerTeacherPage() {
         if (page.length < 1000) break;
         from += 1000;
       }
-      const data = allData;
+      type Row = { session_id: string; validity: string; response: string; rt_ms: number | null; trial_number: number; participant_name?: string };
+      const data = allData as Row[];
       if (data.length === 0) {
         setError('No data available yet.');
         setLoading(false);
@@ -94,13 +95,12 @@ export default function PosnerTeacherPage() {
       }
 
       // Group by session
-      const bySession: Record<string, typeof data> = {};
-      data.forEach((r: { session_id: string }) => {
+      const bySession: Record<string, Row[]> = {};
+      data.forEach((r) => {
         if (!bySession[r.session_id]) bySession[r.session_id] = [];
         bySession[r.session_id].push(r);
       });
 
-      type Row = { validity: string; response: string; rt_ms: number | null; trial_number: number; participant_name?: string };
       const mean = (arr: Row[]) =>
         arr.length > 0 ? arr.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / arr.length : 0;
 
