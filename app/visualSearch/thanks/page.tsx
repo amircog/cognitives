@@ -11,6 +11,7 @@ export default function VisualSearchThanksPage() {
 
   useEffect(() => {
     const saved = sessionStorage.getItem('vs_language') as 'he' | 'en' | null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setLang(saved);
   }, []);
 

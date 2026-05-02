@@ -87,6 +87,7 @@ export default function VisualSearchResultsPage() {
     if (!stored) { router.push('/visualSearch'); return; }
     try {
       const all: VisualSearchResult[] = JSON.parse(stored);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRawResults(all.filter(r => !r.is_practice));
     } catch {
       router.push('/visualSearch');
@@ -200,7 +201,7 @@ export default function VisualSearchResultsPage() {
         {/* Chart 2: RT & Accuracy vs Distractor Set Size */}
         <div className="bg-card border border-border rounded-xl p-6 mb-6">
           <h2 className="text-lg font-semibold mb-1">RT & Accuracy vs Distractor Set Size</h2>
-          <p className="text-sm text-muted mb-4">Opposite-color T's in display</p>
+          <p className="text-sm text-muted mb-4">Opposite-color T&apos;s in display</p>
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={stats.distractorSSData} margin={{ left: 10, right: 40, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />

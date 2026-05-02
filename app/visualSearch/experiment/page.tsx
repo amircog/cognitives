@@ -217,7 +217,7 @@ export default function VisualSearchExperimentPage() {
       setStageSync('iti');
       timeoutRef.current = setTimeout(() => { if (stageRef.current !== 'iti') return; advanceTrial(); }, 500);
     }
-  }, [advanceTrial, saveResult, setStageSync]);
+  }, [advanceTrial, lang, saveResult, setStageSync]);
 
   // ── Initialise ───────────────────────────────────────────────────────────
   useEffect(() => {
