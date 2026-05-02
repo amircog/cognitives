@@ -83,7 +83,7 @@ export default function DRMTeacherDashboard() {
         if (page.length < 1000) break;
         from += 1000;
       }
-      const data = allData;
+      const data = allData as DRMResult[];
 
       if (data.length === 0) {
         setError('No data available yet. Waiting for participants to complete the experiment.');
