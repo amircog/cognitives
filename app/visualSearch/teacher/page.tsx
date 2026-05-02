@@ -1,16 +1,24 @@
 'use client';
 
-import { useEffect, useState, FormEvent, useCallback } from 'react';
+import { useEffect, useState, useMemo, FormEvent, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ErrorBar,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Search, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
+const SS_LEVELS = [1, 2, 4, 8];
+const BIN_MS = 100;
+const DIST_BINS = [
+  { label: 'Near 0–100', min: 0, max: 100 },
+  { label: 'Mid 100–200', min: 100, max: 200 },
+  { label: 'Far 200–300', min: 200, max: 300 },
+  { label: 'Edge 300+', min: 300, max: Infinity },
+];
 
 async function sha256(str: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -24,13 +32,32 @@ function sem(values: number[]): number {
   return Math.sqrt(variance / values.length);
 }
 
-const SS_LEVELS = [1, 2, 4, 8];
-const DIST_BINS = [
-  { label: 'Near 0–100', min: 0, max: 100 },
-  { label: 'Mid 100–200', min: 100, max: 200 },
-  { label: 'Far 200–300', min: 200, max: 300 },
-  { label: 'Edge 300+', min: 300, max: Infinity },
-];
+function sdCleanRows(rows: Row[]): Row[] {
+  const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  const cleaned: Row[] = [];
+  for (const sid of sessions) {
+    const sRows = rows.filter(r => r.session_id === sid);
+    const rts = sRows.filter(r => r.rt_ms != null).map(r => r.rt_ms as number);
+    if (rts.length < 2) { cleaned.push(...sRows); continue; }
+    const mean = rts.reduce((a, b) => a + b, 0) / rts.length;
+    const sd = Math.sqrt(rts.reduce((a, b) => a + (b - mean) ** 2, 0) / (rts.length - 1));
+    const lo = mean - 2.5 * sd, hi = mean + 2.5 * sd;
+    cleaned.push(...sRows.filter(r => r.rt_ms == null || (r.rt_ms >= lo && r.rt_ms <= hi)));
+  }
+  return cleaned;
+}
+
+function computeHistogram(rows: Row[]): { bin: number; count: number }[] {
+  const rts = rows.filter(r => r.correct && r.rt_ms != null).map(r => r.rt_ms as number);
+  if (rts.length === 0) return [];
+  const minBin = Math.floor(Math.min(...rts) / BIN_MS) * BIN_MS;
+  const maxBin = Math.ceil(Math.max(...rts) / BIN_MS) * BIN_MS;
+  const points: { bin: number; count: number }[] = [];
+  for (let b = minBin; b <= maxBin; b += BIN_MS) {
+    points.push({ bin: b, count: rts.filter(rt => rt >= b && rt < b + BIN_MS).length });
+  }
+  return points;
+}
 
 type Row = {
   session_id: string;
@@ -68,12 +95,6 @@ interface DistanceBinPoint {
   rtSem: number | null;
 }
 
-interface AggStats {
-  totalParticipants: number;
-  totalTrials: number;
-  overallAccuracy: number;
-}
-
 const chartStyle = { background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 };
 const axisStyle = { fill: '#a1a1aa', fontSize: 11 };
 
@@ -108,12 +129,8 @@ export default function VisualSearchTeacherPage() {
   const [pwError, setPwError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [aggStats, setAggStats] = useState<AggStats | null>(null);
-  const [targetSSData, setTargetSSData] = useState<SetSizePoint[]>([]);
-  const [distractorSSData, setDistractorSSData] = useState<SetSizePoint[]>([]);
-  const [contrastData, setContrastData] = useState<PresenceContrastPoint[]>([]);
-  const [distanceData, setDistanceData] = useState<DistanceBinPoint[]>([]);
   const [rawRows, setRawRows] = useState<Row[]>([]);
+  const [mode, setMode] = useState<'raw' | 'sdclean'>('raw');
 
   useEffect(() => {
     if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
@@ -137,7 +154,6 @@ export default function VisualSearchTeacherPage() {
     try {
       const supabase = getSupabase();
       if (!supabase) throw new Error('Supabase not available');
-
       const allData: unknown[] = [];
       let from = 0;
       while (true) {
@@ -154,99 +170,13 @@ export default function VisualSearchTeacherPage() {
         from += 1000;
       }
       const rows = allData as Row[];
-      setRawRows(rows);
-
       if (rows.length === 0) {
         setError('No data available yet.');
         setLoading(false);
         return;
       }
-
-      const sessionList = Array.from(new Set(rows.map(r => r.session_id)));
-
-      setAggStats({
-        totalParticipants: sessionList.length,
-        totalTrials: rows.length,
-        overallAccuracy: Math.round((rows.filter(r => r.correct).length / rows.length) * 100),
-      });
-
-      // ── Chart (a): RT & accuracy vs target set size ───────────────────────
-      const tSSPoints: SetSizePoint[] = SS_LEVELS.map(ss => {
-        const sessionRTs = sessionList.map(sid => {
-          const sRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && r.correct && r.rt_ms != null);
-          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
-        }).filter((v): v is number => v !== null);
-        const sessionAccs = sessionList.map(sid => {
-          const sRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss);
-          return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
-        }).filter((v): v is number => v !== null);
-        return {
-          setSize: ss,
-          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
-          rtSem: Math.round(sem(sessionRTs)),
-          accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
-          accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
-        };
-      });
-      setTargetSSData(tSSPoints);
-
-      // ── Chart (b): RT & accuracy vs distractor set size ───────────────────
-      const dSSPoints: SetSizePoint[] = SS_LEVELS.map(ss => {
-        const sessionRTs = sessionList.map(sid => {
-          const sRows = rows.filter(r => r.session_id === sid && r.distractor_set_size === ss && r.correct && r.rt_ms != null);
-          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
-        }).filter((v): v is number => v !== null);
-        const sessionAccs = sessionList.map(sid => {
-          const sRows = rows.filter(r => r.session_id === sid && r.distractor_set_size === ss);
-          return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
-        }).filter((v): v is number => v !== null);
-        return {
-          setSize: ss,
-          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
-          rtSem: Math.round(sem(sessionRTs)),
-          accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
-          accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
-        };
-      });
-      setDistractorSSData(dSSPoints);
-
-      // ── Chart (c): present-RT minus absent-RT vs target set size ──────────
-      const cPoints: PresenceContrastPoint[] = SS_LEVELS.map(ss => {
-        const sessionContrasts = sessionList.map(sid => {
-          const presRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && r.target_present && r.correct && r.rt_ms != null);
-          const absRows = rows.filter(r => r.session_id === sid && r.target_set_size === ss && !r.target_present && r.correct && r.rt_ms != null);
-          if (presRows.length === 0 || absRows.length === 0) return null;
-          const presRT = presRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / presRows.length;
-          const absRT = absRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / absRows.length;
-          return presRT - absRT;
-        }).filter((v): v is number => v !== null);
-        return {
-          setSize: ss,
-          contrast: sessionContrasts.length > 0 ? Math.round(sessionContrasts.reduce((a, b) => a + b) / sessionContrasts.length) : null,
-          contrastSem: Math.round(sem(sessionContrasts)),
-        };
-      });
-      setContrastData(cPoints);
-
-      // ── Chart (d): present-RT vs target distance from center ─────────────
-      const dBins: DistanceBinPoint[] = DIST_BINS.map(({ label, min, max }) => {
-        const sessionRTs = sessionList.map(sid => {
-          const binRows = rows.filter(r =>
-            r.session_id === sid && r.target_present && r.correct && r.rt_ms != null &&
-            r.target_distance_from_center != null &&
-            (r.target_distance_from_center ?? 0) >= min &&
-            (r.target_distance_from_center ?? 0) < max
-          );
-          return binRows.length > 0 ? binRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / binRows.length : null;
-        }).filter((v): v is number => v !== null);
-        return {
-          label,
-          rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
-          rtSem: Math.round(sem(sessionRTs)),
-        };
-      });
-      setDistanceData(dBins);
-
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRawRows(rows);
     } catch (err) {
       console.error(err);
       setError('Failed to load data.');
@@ -258,6 +188,98 @@ export default function VisualSearchTeacherPage() {
   useEffect(() => {
     if (authed) fetchData();
   }, [authed, fetchData]);
+
+  // ── Derived data ────────────────────────────────────────────────────────────
+  const activeRows = useMemo(
+    () => mode === 'sdclean' ? sdCleanRows(rawRows) : rawRows,
+    [rawRows, mode],
+  );
+  const excludedCount = rawRows.length - activeRows.length;
+
+  const sessionList = useMemo(
+    () => Array.from(new Set(activeRows.map(r => r.session_id))),
+    [activeRows],
+  );
+
+  const aggStats = useMemo(() => {
+    if (activeRows.length === 0) return null;
+    return {
+      totalParticipants: sessionList.length,
+      totalTrials: activeRows.length,
+      overallAccuracy: Math.round((activeRows.filter(r => r.correct).length / activeRows.length) * 100),
+    };
+  }, [activeRows, sessionList]);
+
+  const targetSSData = useMemo<SetSizePoint[]>(() => SS_LEVELS.map(ss => {
+    const sessionRTs = sessionList.map(sid => {
+      const sRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss && r.correct && r.rt_ms != null);
+      return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+    }).filter((v): v is number => v !== null);
+    const sessionAccs = sessionList.map(sid => {
+      const sRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss);
+      return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
+    }).filter((v): v is number => v !== null);
+    return {
+      setSize: ss,
+      rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+      rtSem: Math.round(sem(sessionRTs)),
+      accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
+      accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
+    };
+  }), [activeRows, sessionList]);
+
+  const distractorSSData = useMemo<SetSizePoint[]>(() => SS_LEVELS.map(ss => {
+    const sessionRTs = sessionList.map(sid => {
+      const sRows = activeRows.filter(r => r.session_id === sid && r.distractor_set_size === ss && r.correct && r.rt_ms != null);
+      return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+    }).filter((v): v is number => v !== null);
+    const sessionAccs = sessionList.map(sid => {
+      const sRows = activeRows.filter(r => r.session_id === sid && r.distractor_set_size === ss);
+      return sRows.length > 0 ? sRows.filter(r => r.correct).length / sRows.length * 100 : null;
+    }).filter((v): v is number => v !== null);
+    return {
+      setSize: ss,
+      rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+      rtSem: Math.round(sem(sessionRTs)),
+      accuracy: sessionAccs.length > 0 ? Math.round(sessionAccs.reduce((a, b) => a + b) / sessionAccs.length) : null,
+      accuracySem: Math.round(sem(sessionAccs) * 10) / 10,
+    };
+  }), [activeRows, sessionList]);
+
+  const contrastData = useMemo<PresenceContrastPoint[]>(() => SS_LEVELS.map(ss => {
+    const sessionContrasts = sessionList.map(sid => {
+      const presRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss && r.target_present && r.correct && r.rt_ms != null);
+      const absRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss && !r.target_present && r.correct && r.rt_ms != null);
+      if (presRows.length === 0 || absRows.length === 0) return null;
+      const presRT = presRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / presRows.length;
+      const absRT = absRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / absRows.length;
+      return presRT - absRT;
+    }).filter((v): v is number => v !== null);
+    return {
+      setSize: ss,
+      contrast: sessionContrasts.length > 0 ? Math.round(sessionContrasts.reduce((a, b) => a + b) / sessionContrasts.length) : null,
+      contrastSem: Math.round(sem(sessionContrasts)),
+    };
+  }), [activeRows, sessionList]);
+
+  const distanceData = useMemo<DistanceBinPoint[]>(() => DIST_BINS.map(({ label, min, max }) => {
+    const sessionRTs = sessionList.map(sid => {
+      const binRows = activeRows.filter(r =>
+        r.session_id === sid && r.target_present && r.correct && r.rt_ms != null &&
+        r.target_distance_from_center != null &&
+        (r.target_distance_from_center ?? 0) >= min &&
+        (r.target_distance_from_center ?? 0) < max
+      );
+      return binRows.length > 0 ? binRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / binRows.length : null;
+    }).filter((v): v is number => v !== null);
+    return {
+      label,
+      rt: sessionRTs.length > 0 ? Math.round(sessionRTs.reduce((a, b) => a + b) / sessionRTs.length) : null,
+      rtSem: Math.round(sem(sessionRTs)),
+    };
+  }), [activeRows, sessionList]);
+
+  const rtHistogram = useMemo(() => computeHistogram(activeRows), [activeRows]);
 
   function downloadCSV() {
     if (rawRows.length === 0) return;
@@ -335,12 +357,12 @@ export default function VisualSearchTeacherPage() {
     <main className="min-h-screen p-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <GraduationCap className="w-10 h-10 text-rose-400" />
             <div>
               <h1 className="text-4xl font-bold tracking-tight">Teacher Dashboard</h1>
-              <p className="text-muted mt-1">Visual Search – Aggregate Results v2</p>
+              <p className="text-muted mt-1">Visual Search – Aggregate Results</p>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
@@ -366,6 +388,37 @@ export default function VisualSearchTeacherPage() {
             </motion.button>
           </div>
         </div>
+
+        {/* Mode toggle */}
+        {rawRows.length > 0 && (
+          <div className="flex flex-col items-center gap-2 mb-8">
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button
+                onClick={() => setMode('raw')}
+                className={`px-5 py-2 text-sm font-medium transition-colors ${
+                  mode === 'raw' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                Raw Data
+              </button>
+              <button
+                onClick={() => setMode('sdclean')}
+                className={`px-5 py-2 text-sm font-medium transition-colors ${
+                  mode === 'sdclean' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                SD-Clean (±2.5)
+              </button>
+            </div>
+            <p className="text-xs text-muted h-4">
+              {mode === 'sdclean'
+                ? excludedCount > 0
+                  ? `${excludedCount} trial${excludedCount > 1 ? 's' : ''} excluded across all participants (${activeRows.length} of ${rawRows.length} kept)`
+                  : 'No trials excluded'
+                : `${rawRows.length} trials`}
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="bg-card border border-yellow-500/50 rounded-xl p-8 mb-8 text-center">
@@ -425,7 +478,7 @@ export default function VisualSearchTeacherPage() {
             {/* Chart (b): RT & accuracy vs distractor set size */}
             <ChartCard
               title="(b) RT & Accuracy vs Distractor Set Size"
-              subtitle="Number of opposite-color T's. More T's of the wrong color = more distractors to reject. Error bars = SEM."
+              subtitle="Number of opposite-color T's in display. Error bars = SEM."
             >
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={280}>
@@ -497,6 +550,38 @@ export default function VisualSearchTeacherPage() {
                         </Bar>
                       )}
                     </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            )}
+
+            {/* Chart (e): RT distribution histogram */}
+            {rtHistogram.length > 0 && (
+              <ChartCard
+                title="(e) RT Distribution"
+                subtitle={`Correct trials · ${BIN_MS}ms bins · all participants${mode === 'sdclean' ? ' · SD-cleaned' : ''}`}
+              >
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={rtHistogram} margin={{ left: 10, right: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                      <XAxis
+                        dataKey="bin"
+                        tick={axisStyle}
+                        interval="preserveStartEnd"
+                        label={{ value: 'RT (ms)', position: 'insideBottom', offset: -10, style: axisStyle }}
+                      />
+                      <YAxis
+                        tick={axisStyle}
+                        allowDecimals={false}
+                        label={{ value: 'Count', angle: -90, position: 'insideLeft', style: axisStyle }}
+                      />
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <Tooltip contentStyle={chartStyle} formatter={(v: any) => [v, 'trials']} labelFormatter={(l) => `${l}–${(l as number) + BIN_MS}ms`} />
+                      {revealed && (
+                        <Bar dataKey="count" name="Trials" fill="#34d399" opacity={0.8} radius={[2, 2, 0, 0]} />
+                      )}
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>
