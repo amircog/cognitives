@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
   ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ErrorBar,
+  ResponsiveContainer, Legend, ErrorBar, ReferenceLine,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Search, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -278,6 +278,32 @@ export default function VisualSearchTeacherPage() {
       rtSem: Math.round(sem(sessionRTs)),
     };
   }), [activeRows, sessionList]);
+
+  const colorContrastData = useMemo(() => {
+    const colorOf = (sid: string) => activeRows.find(r => r.session_id === sid)?.target_color ?? null;
+    return SS_LEVELS.map(ss => {
+      const blueRTs = sessionList
+        .filter(sid => colorOf(sid) === 'blue')
+        .map(sid => {
+          const sRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss && r.correct && r.rt_ms != null);
+          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+        }).filter((v): v is number => v !== null);
+      const redRTs = sessionList
+        .filter(sid => colorOf(sid) === 'red')
+        .map(sid => {
+          const sRows = activeRows.filter(r => r.session_id === sid && r.target_set_size === ss && r.correct && r.rt_ms != null);
+          return sRows.length > 0 ? sRows.reduce((s, r) => s + (r.rt_ms ?? 0), 0) / sRows.length : null;
+        }).filter((v): v is number => v !== null);
+      if (blueRTs.length === 0 || redRTs.length === 0) return { setSize: ss, contrast: null as number | null, contrastSem: null as number | null };
+      const blueRT = blueRTs.reduce((a, b) => a + b) / blueRTs.length;
+      const redRT = redRTs.reduce((a, b) => a + b) / redRTs.length;
+      return {
+        setSize: ss,
+        contrast: Math.round(blueRT - redRT),
+        contrastSem: Math.round(Math.sqrt(sem(blueRTs) ** 2 + sem(redRTs) ** 2)),
+      };
+    });
+  }, [activeRows, sessionList]);
 
   const rtHistogram = useMemo(() => computeHistogram(activeRows), [activeRows]);
 
@@ -555,10 +581,37 @@ export default function VisualSearchTeacherPage() {
               </ChartCard>
             )}
 
-            {/* Chart (e): RT distribution histogram */}
+            {/* Chart (e): Blue vs Red target color contrast */}
+            {colorContrastData.some(d => d.contrast != null) && (
+              <ChartCard
+                title="(e) Target Color Effect: Blue − Red RT by Set Size"
+                subtitle="Mean correct RT for blue-target sessions minus red-target sessions. Positive = blue harder. Error bars = propagated SEM."
+              >
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={colorContrastData} margin={{ left: 10, right: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                      <XAxis dataKey="setSize" tick={axisStyle} label={{ value: 'Target Set Size', position: 'insideBottom', offset: -10, style: axisStyle }} />
+                      <YAxis tick={axisStyle} label={{ value: 'Blue − Red RT (ms)', angle: -90, position: 'insideLeft', style: { fill: '#a1a1aa', fontSize: 11 } }} />
+                      <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 3" strokeWidth={1.5} />
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <Tooltip contentStyle={chartStyle} formatter={(v: any) => v != null ? [`${v}ms`, 'Blue − Red'] : ['N/A', 'Blue − Red']} />
+                      <Legend verticalAlign="top" wrapperStyle={{ color: '#a1a1aa', paddingBottom: 8 }} />
+                      {revealed && (
+                        <Bar dataKey="contrast" name="Blue − Red RT (ms)" fill="#60a5fa" radius={[4, 4, 0, 0]}>
+                          <ErrorBar dataKey="contrastSem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Bar>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            )}
+
+            {/* Chart (f): RT distribution histogram */}
             {rtHistogram.length > 0 && (
               <ChartCard
-                title="(e) RT Distribution"
+                title="(f) RT Distribution"
                 subtitle={`Correct trials · ${BIN_MS}ms bins · all participants${mode === 'sdclean' ? ' · SD-cleaned' : ''}`}
               >
                 {(revealed) => (
