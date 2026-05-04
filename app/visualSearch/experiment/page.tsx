@@ -80,7 +80,7 @@ export default function VisualSearchExperimentPage() {
   const isPracticeRef = useRef(true);
   const mainTrialCountRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const displayContainerRef = useRef<HTMLDivElement>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
 
   const setStageSync = useCallback((s: Stage) => {
     stageRef.current = s;
@@ -88,19 +88,21 @@ export default function VisualSearchExperimentPage() {
   }, []);
 
   // ── Compute display scale based on available area ────────────────────────
-  // ResizeObserver fires on initial observation AND on any layout change
-  // (orientation, address-bar hide/show, etc.) — more reliable than window resize.
-  useEffect(() => {
-    const containerEl = displayContainerRef.current;
-    if (!containerEl) return;
-    const observer = new ResizeObserver((entries) => {
+  // Callback ref: fires exactly when the element mounts/unmounts, so the
+  // ResizeObserver attaches even though the element only renders after
+  // the 'loading' stage ends.
+  const displayContainerRef = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       if (width === 0 || height === 0) return;
       const available = Math.min(width * 0.98, height * 0.98, 500);
       setDisplayScale(available / 600);
     });
-    observer.observe(containerEl);
-    return () => observer.disconnect();
+    ro.observe(el);
+    roRef.current = ro;
   }, []);
 
   // ── Save result ──────────────────────────────────────────────────────────
