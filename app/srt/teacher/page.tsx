@@ -316,7 +316,7 @@ export default function SrtTeacher() {
     });
   }, [activeRows]);
 
-  // Generation accuracy per serial position
+  // Generation accuracy per serial position (exactly 1 response per participant per position)
   const generationAccData = useMemo(() => {
     if (genRows.length === 0) return [];
     const positionCorrect: number[][] = Array.from({ length: 12 }, () => []);
@@ -325,16 +325,15 @@ export default function SrtTeacher() {
       if (excludeParticipantsEnabled && excludedSessions.has(g.session_id)) continue;
       const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
       const clicks = g.sequence as number[];
-      for (let i = 0; i < clicks.length; i++) {
-        const seqPos = i % 12;
-        positionCorrect[seqPos].push(clicks[i] === mainSeq[seqPos] ? 1 : 0);
+      for (let i = 0; i < Math.min(clicks.length, 12); i++) {
+        positionCorrect[i].push(clicks[i] === mainSeq[i] ? 100 : 0);
       }
     }
 
     return positionCorrect.map((vals, i) => ({
       position: i + 1,
-      accuracy: vals.length > 0 ? Math.round(mean(vals) * 100) : 0,
-      sem: vals.length > 0 ? Math.round(sem(vals.map(v => v * 100))) : 0,
+      accuracy: vals.length > 0 ? Math.round(mean(vals)) : 0,
+      sem: vals.length > 0 ? Math.round(sem(vals)) : 0,
     }));
   }, [genRows, excludeParticipantsEnabled, excludedSessions]);
 
