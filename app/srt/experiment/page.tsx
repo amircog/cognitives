@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { generateTrials, MAX_RT_MS, TOTAL_TRIALS } from '@/lib/srt/stimuli';
+import { generateTrials, MAX_RT_MS, TOTAL_TRIALS, SEQUENCE_A, SEQUENCE_B } from '@/lib/srt/stimuli';
 import { SrtTrial, SrtTrialResult } from '@/types/srt';
 import { getSupabase } from '@/lib/supabase';
 
@@ -25,6 +25,8 @@ export default function SrtExperiment() {
   const [phase, setPhase] = useState<'experiment' | 'generation'>('experiment');
   const [generationClicks, setGenerationClicks] = useState<number[]>([]);
   const [lastClicked, setLastClicked] = useState<number | null>(null);
+  const [correctLoc, setCorrectLoc] = useState<number | null>(null);
+  const [genWaiting, setGenWaiting] = useState(false);
   const [language, setLanguage] = useState<'en' | 'he'>('he');
   const stimulusOnsetRef = useRef<number>(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,9 +113,21 @@ export default function SrtExperiment() {
   }, [phase, showDot]);
 
   const handleGenerationClick = (location: number) => {
+    if (genWaiting) return;
+    const mainSeq = mainIsARef.current ? SEQUENCE_A : SEQUENCE_B;
+    const seqIdx = generationClicks.length % 12;
+    const correct = mainSeq[seqIdx];
+
     setLastClicked(location);
+    setCorrectLoc(correct);
     setGenerationClicks(prev => [...prev, location]);
-    setTimeout(() => setLastClicked(null), 200);
+    setGenWaiting(true);
+
+    setTimeout(() => {
+      setLastClicked(null);
+      setCorrectLoc(null);
+      setGenWaiting(false);
+    }, 800);
   };
 
   const handleGenerationDone = async () => {
@@ -161,14 +175,18 @@ export default function SrtExperiment() {
         <div className="flex-1 relative">
           {[1, 2, 3, 4].map(loc => {
             const pos = POSITIONS[loc];
-            const isHighlighted = lastClicked === loc;
+            const isClicked = lastClicked === loc;
+            const isCorrect = correctLoc === loc;
+            let borderClass = 'border-gray-500 bg-white';
+            if (isClicked && isCorrect) borderClass = 'border-emerald-400 bg-emerald-400/30';
+            else if (isClicked && !isCorrect) borderClass = 'border-rose-400 bg-rose-400/30';
+            else if (isCorrect && lastClicked !== null) borderClass = 'border-emerald-400 bg-emerald-400/30';
             return (
               <button
                 key={loc}
                 onClick={() => handleGenerationClick(loc)}
-                className={`absolute w-20 h-20 -ml-10 -mt-10 rounded-lg border-2 flex items-center justify-center touch-manipulation active:scale-95 transition-all ${
-                  isHighlighted ? 'border-emerald-400 bg-emerald-400/30' : 'border-gray-500 bg-white'
-                }`}
+                disabled={genWaiting}
+                className={`absolute w-20 h-20 -ml-10 -mt-10 rounded-lg border-2 flex items-center justify-center touch-manipulation active:scale-95 transition-all ${borderClass}`}
                 style={{ top: pos.top, left: pos.left }}
               />
             );

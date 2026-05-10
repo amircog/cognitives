@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ErrorBar, ScatterChart, Scatter,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
+import { SEQUENCE_A, SEQUENCE_B } from '@/lib/srt/stimuli';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 const TRIALS_PER_BLOCK = 108;
@@ -315,6 +316,28 @@ export default function SrtTeacher() {
     });
   }, [activeRows]);
 
+  // Generation accuracy per serial position
+  const generationAccData = useMemo(() => {
+    if (genRows.length === 0) return [];
+    const positionCorrect: number[][] = Array.from({ length: 12 }, () => []);
+
+    for (const g of genRows) {
+      if (excludeParticipantsEnabled && excludedSessions.has(g.session_id)) continue;
+      const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
+      const clicks = g.sequence as number[];
+      for (let i = 0; i < clicks.length; i++) {
+        const seqPos = i % 12;
+        positionCorrect[seqPos].push(clicks[i] === mainSeq[seqPos] ? 1 : 0);
+      }
+    }
+
+    return positionCorrect.map((vals, i) => ({
+      position: i + 1,
+      accuracy: vals.length > 0 ? Math.round(mean(vals) * 100) : 0,
+      sem: vals.length > 0 ? Math.round(sem(vals.map(v => v * 100))) : 0,
+    }));
+  }, [genRows, excludeParticipantsEnabled, excludedSessions]);
+
   const downloadCsv = () => {
     if (activeRows.length === 0) return;
     const headers = Object.keys(activeRows[0]).join(',');
@@ -414,22 +437,31 @@ export default function SrtTeacher() {
             </p>
 
             {/* Participant exclusion toggle */}
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={excludeParticipantsEnabled}
-                  onChange={e => setExcludeParticipantsEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-emerald-500"
-                />
-                <span className="text-sm text-gray-300">Exclude participants (±2.5 SD RT or −2.5 SD accuracy)</span>
-              </label>
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button
+                onClick={() => setExcludeParticipantsEnabled(false)}
+                className={`px-5 py-2 text-sm font-medium transition-colors ${
+                  !excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                All Participants
+              </button>
+              <button
+                onClick={() => setExcludeParticipantsEnabled(true)}
+                className={`px-5 py-2 text-sm font-medium transition-colors ${
+                  excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                Exclude Outliers (±2.5 SD)
+              </button>
             </div>
-            {excludeParticipantsEnabled && excludedSessions.size > 0 && (
-              <p className="text-xs text-rose-400">
-                {excludedSessions.size} participant{excludedSessions.size > 1 ? 's' : ''} excluded
-              </p>
-            )}
+            <p className="text-xs text-muted h-4">
+              {excludeParticipantsEnabled
+                ? excludedSessions.size > 0
+                  ? `${excludedSessions.size} participant${excludedSessions.size > 1 ? 's' : ''} excluded (RT ±2.5 SD or accuracy −2.5 SD)`
+                  : 'No participants excluded'
+                : `${nParticipants} participants`}
+            </p>
           </div>
         )}
 
@@ -513,6 +545,28 @@ export default function SrtTeacher() {
             </ResponsiveContainer>
           )}
         </ChartCard>
+
+        {/* Chart 5: Generation task accuracy per serial position */}
+        {generationAccData.length > 0 && (
+          <ChartCard title="Generation Task: Accuracy by Sequence Position">
+            {(revealed) => (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={generationAccData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="position" stroke="#9ca3af" label={{ value: 'Sequence position', position: 'insideBottom', offset: -5, fill: '#9ca3af' }} />
+                  <YAxis stroke="#9ca3af" domain={[0, 100]} label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
+                  <Legend verticalAlign="top" />
+                  {revealed && (
+                    <Bar dataKey="accuracy" fill="#34d399" name="Accuracy (%)">
+                      <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                    </Bar>
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+        )}
       </div>
     </div>
   );
