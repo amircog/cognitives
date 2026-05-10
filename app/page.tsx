@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type, Lock, LockOpen } from 'lucide-react';
+import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type, Lock, LockOpen, Timer } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
@@ -25,6 +25,7 @@ const EXPERIMENTS: Exp[] = [
   { id: 'stroop',          title: 'Stroop Effect',           titleHe: 'אפקט סטרופ',         icon: Brain,     color: 'text-emerald-400' },
   { id: 'mentalRep',       title: 'Mental Representation',   titleHe: 'ייצוג מנטלי',        icon: BrainCog,  color: 'text-cyan-400'    },
   { id: 'drm',             title: 'False Memory (DRM)',      titleHe: 'זיכרון שווא',        icon: Beaker,    color: 'text-purple-400'  },
+  { id: 'srt',             title: 'Serial Reaction Time',   titleHe: 'זמן תגובה סדרתי',    icon: Timer,     color: 'text-lime-400'    },
 ];
 
 const CATEGORIES = [
@@ -34,7 +35,7 @@ const CATEGORIES = [
   { name: 'EXECUTIVE CONTROL', nameHe: 'בקרה ניהולית', ids: ['stroop'] },
   { name: 'IMAGINATION',       nameHe: 'דמיון',         ids: ['mentalRep'] },
   { name: 'MEMORY',            nameHe: 'זיכרון',        ids: ['drm'] },
-  { name: 'LEARNING',          nameHe: 'למידה',         ids: [] },
+  { name: 'LEARNING',          nameHe: 'למידה',         ids: ['srt'] },
   { name: 'CONSCIOUSNESS',     nameHe: 'תודעה',         ids: [] },
   { name: 'DECISION MAKING',   nameHe: 'קבלת החלטות',  ids: [] },
   { name: 'THINKING',          nameHe: 'חשיבה',         ids: [] },
