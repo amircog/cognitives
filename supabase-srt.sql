@@ -18,3 +18,16 @@ CREATE TABLE IF NOT EXISTS srt_results (
 ALTER TABLE srt_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "allow insert" ON srt_results FOR INSERT WITH CHECK (true);
 CREATE POLICY "allow select" ON srt_results FOR SELECT USING (true);
+
+CREATE TABLE IF NOT EXISTS srt_generation (
+  id               bigint generated always as identity primary key,
+  created_at       timestamptz default now() not null,
+  session_id       text not null,
+  participant_name text,
+  sequence         jsonb not null,
+  main_is_a        boolean not null
+);
+
+ALTER TABLE srt_generation ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow insert" ON srt_generation FOR INSERT WITH CHECK (true);
+CREATE POLICY "allow select" ON srt_generation FOR SELECT USING (true);

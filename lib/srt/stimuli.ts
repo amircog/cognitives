@@ -4,7 +4,6 @@ import { SrtTrial } from '@/types/srt';
 export const SEQUENCE_A = [3, 4, 2, 3, 1, 2, 1, 4, 3, 2, 4, 1];
 export const SEQUENCE_B = [3, 4, 1, 2, 4, 3, 1, 4, 2, 1, 3, 2];
 
-export const ISI_MS = 500;
 export const MAX_RT_MS = 3000;
 export const BLOCKS = 6;
 export const TRIALS_PER_BLOCK = 108; // 9 repetitions of 12-item sequence
