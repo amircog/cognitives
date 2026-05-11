@@ -18,7 +18,7 @@ const GEN_PRIME_MS = 750;
 const GEN_FEEDBACK_MS = 750;
 const GEN_TRIALS = 12;
 
-type Phase = 'experiment' | 'gen-instructions' | 'gen-prime' | 'gen-respond' | 'gen-feedback' | 'done';
+type Phase = 'experiment' | 'gen-awareness' | 'gen-instructions' | 'gen-prime' | 'gen-respond' | 'gen-feedback' | 'done';
 
 export default function SrtExperiment() {
   const router = useRouter();
@@ -28,7 +28,8 @@ export default function SrtExperiment() {
   const [phase, setPhase] = useState<Phase>('experiment');
   const [language, setLanguage] = useState<'en' | 'he'>('he');
 
-  // Generation state
+  // Awareness + Generation state
+  const [noticedRegularity, setNoticedRegularity] = useState<boolean | null>(null);
   const [genIdx, setGenIdx] = useState(0); // 0-11 for the 12 generation trials
   const [genResponses, setGenResponses] = useState<number[]>([]);
   const [genPrimeStep, setGenPrimeStep] = useState(0); // 0 or 1 for the two priming dots
@@ -84,7 +85,7 @@ export default function SrtExperiment() {
 
     if (idx + 1 >= trials.length) {
       saveResults();
-      setPhase('gen-instructions');
+      setPhase('gen-awareness');
     } else {
       setIdx(i => i + 1);
       stimulusOnsetRef.current = performance.now();
@@ -174,6 +175,7 @@ export default function SrtExperiment() {
           participant_name: participantNameRef.current,
           sequence: finalResponses,
           main_is_a: mainIsARef.current,
+          noticed_regularity: noticedRegularity,
         });
       }
     } catch (e) { console.error('Save generation error:', e); }
@@ -187,6 +189,35 @@ export default function SrtExperiment() {
     return (
       <div className="bg-[#0f172a] flex items-center justify-center" style={{ height: '100dvh' }}>
         <p className="text-white text-lg animate-pulse">Saving...</p>
+      </div>
+    );
+  }
+
+  // Awareness question
+  if (phase === 'gen-awareness') {
+    return (
+      <div className="bg-[#0f172a] flex items-center justify-center px-4" style={{ height: '100dvh' }} dir={isHe ? 'rtl' : 'ltr'}>
+        <div className="max-w-sm text-center flex flex-col items-center gap-6">
+          <p className="text-white text-base leading-relaxed">
+            {isHe
+              ? 'האם הבחנת בחוקיות כלשהי במיקומי הנקודות?'
+              : 'Did you notice any regularity in the locations?'}
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => { setNoticedRegularity(true); setPhase('gen-instructions'); }}
+              className="px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors touch-manipulation"
+            >
+              {isHe ? 'כן' : 'Yes'}
+            </button>
+            <button
+              onClick={() => { setNoticedRegularity(false); setPhase('gen-instructions'); }}
+              className="px-8 py-3 rounded-xl bg-gray-600 hover:bg-gray-500 text-white font-semibold transition-colors touch-manipulation"
+            >
+              {isHe ? 'לא' : 'No'}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

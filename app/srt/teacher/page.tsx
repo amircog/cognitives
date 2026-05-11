@@ -93,6 +93,7 @@ type GenRow = {
   participant_name: string | null;
   sequence: number[];
   main_is_a: boolean;
+  noticed_regularity: boolean | null;
 };
 
 function ChartCard({ title, children }: { title: string; children: (revealed: boolean) => React.ReactNode }) {
@@ -337,6 +338,22 @@ export default function SrtTeacher() {
     }));
   }, [genRows, excludeParticipantsEnabled, excludedSessions]);
 
+  // Individual generation accuracy scatter (one dot per participant, jittered)
+  const genScatterData = useMemo(() => {
+    if (genRows.length === 0) return [];
+    return genRows
+      .filter(g => !excludeParticipantsEnabled || !excludedSessions.has(g.session_id))
+      .map(g => {
+        const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
+        const clicks = g.sequence as number[];
+        const nCorrect = clicks.slice(0, 12).filter((c, i) => c === mainSeq[i]).length;
+        const acc = Math.round((nCorrect / 12) * 100 * 10) / 10;
+        const jitter = (Math.random() - 0.5) * 0.6;
+        const name = g.participant_name ?? g.session_id.slice(0, 8);
+        return { name, accuracy: acc, jitter: 1 + jitter, noticed: g.noticed_regularity };
+      });
+  }, [genRows, excludeParticipantsEnabled, excludedSessions]);
+
   const downloadCsv = () => {
     if (activeRows.length === 0) return;
     const headers = Object.keys(activeRows[0]).join(',');
@@ -535,10 +552,22 @@ export default function SrtTeacher() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis type="number" dataKey="rt" stroke="#9ca3af" name="RT" label={{ value: 'Mean RT (ms)', position: 'insideBottom', offset: -5, fill: '#9ca3af' }} />
                 <YAxis type="number" dataKey="acc" stroke="#9ca3af" name="Accuracy" domain={[0, 100]} label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
-                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} cursor={{ strokeDasharray: '3 3' }} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload as { name: string; rt: number; acc: number };
+                    return (
+                      <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                        <p className="text-white font-semibold">{d.name}</p>
+                        <p className="text-gray-300">RT: {d.rt} ms</p>
+                        <p className="text-gray-300">Accuracy: {d.acc}%</p>
+                      </div>
+                    );
+                  }}
+                  cursor={{ strokeDasharray: '3 3' }}
+                />
                 {revealed && (
-                  <Scatter data={scatterData} fill="#34d399" name="Participants">
-                  </Scatter>
+                  <Scatter data={scatterData} fill="#34d399" name="Participants" />
                 )}
               </ScatterChart>
             </ResponsiveContainer>
@@ -562,6 +591,38 @@ export default function SrtTeacher() {
                     </Bar>
                   )}
                 </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+        )}
+
+        {/* Chart 6: Individual generation accuracy scatter */}
+        {genScatterData.length > 0 && (
+          <ChartCard title="Generation Task: Individual Accuracy">
+            {(revealed) => (
+              <ResponsiveContainer width="100%" height={300}>
+                <ScatterChart>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis type="number" dataKey="jitter" stroke="#9ca3af" hide />
+                  <YAxis type="number" dataKey="accuracy" stroke="#9ca3af" domain={[0, 100]} label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload as { name: string; accuracy: number; noticed: boolean | null };
+                      return (
+                        <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                          <p className="text-white font-semibold">{d.name}</p>
+                          <p className="text-gray-300">Accuracy: {d.accuracy}%</p>
+                          <p className="text-gray-300">Noticed regularity: {d.noticed === null ? '—' : d.noticed ? 'Yes' : 'No'}</p>
+                        </div>
+                      );
+                    }}
+                    cursor={{ strokeDasharray: '3 3' }}
+                  />
+                  {revealed && (
+                    <Scatter data={genScatterData} fill="#34d399" name="Participants" />
+                  )}
+                </ScatterChart>
               </ResponsiveContainer>
             )}
           </ChartCard>

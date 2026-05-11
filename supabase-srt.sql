@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS srt_generation (
   session_id       text not null,
   participant_name text,
   sequence         jsonb not null,
-  main_is_a        boolean not null
+  main_is_a        boolean not null,
+  noticed_regularity boolean
 );
 
 ALTER TABLE srt_generation ENABLE ROW LEVEL SECURITY;
