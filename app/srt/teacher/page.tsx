@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ErrorBar, ScatterChart, Scatter, Cell,
-  ReferenceLine,
+  ReferenceLine, PieChart, Pie,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -159,9 +159,9 @@ export default function SrtTeacher() {
   const sessionIsAMap = useMemo(() => {
     const SEQ_A = [3, 4, 2, 3, 1, 2, 1, 4, 3, 2, 4, 1];
     const map = new Map<string, boolean>();
-    const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
+    const sessions = Array.from(new Set(rawRows.map(r => r.session_id)));
     for (const sid of sessions) {
-      const b1 = activeRows
+      const b1 = rawRows
         .filter(r => r.session_id === sid && r.block_number === 1)
         .sort((a, b) => a.trial_in_block - b.trial_in_block)
         .slice(0, 12)
@@ -174,7 +174,7 @@ export default function SrtTeacher() {
       }
     }
     return map;
-  }, [activeRows, genRows]);
+  }, [rawRows, genRows]);
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
@@ -345,18 +345,16 @@ export default function SrtTeacher() {
     });
   }, [activeGenRows]);
 
-  // ── Chart 7: Awareness bar ──
+  // ── Chart 7: Awareness pie ──
   const awarenessData = useMemo(() => {
-    if (activeGenRows.length === 0) return null;
     const yes = activeGenRows.filter(g => g.noticed_regularity === true).length;
     const no = activeGenRows.filter(g => g.noticed_regularity === false).length;
     const total = yes + no;
     if (total === 0) return null;
-    return {
-      yesPct: Math.round((yes / total) * 100),
-      noPct: Math.round((no / total) * 100),
-      yes, no, total,
-    };
+    return [
+      { name: 'Yes', value: yes, pct: Math.round((yes / total) * 100) },
+      { name: 'No', value: no, pct: Math.round((no / total) * 100) },
+    ];
   }, [activeGenRows]);
 
   const downloadCsv = () => {
@@ -611,37 +609,41 @@ export default function SrtTeacher() {
         )}
 
         {/* Chart 7: Awareness — noticed regularity */}
-        {awarenessData && (
-          <ChartCard title="Did participants notice a regularity?">
-            {(revealed) => (
-              <div className="flex flex-col items-center gap-3">
-                {revealed ? (
-                  <>
-                    <div className="w-full max-w-sm h-10 flex rounded-lg overflow-hidden border border-gray-600">
-                      <div
-                        className="bg-emerald-500 flex items-center justify-center text-white text-xs font-semibold transition-all"
-                        style={{ width: `${awarenessData.yesPct}%` }}
+        <ChartCard title="Did participants notice a regularity?">
+          {(revealed) => (
+            <div className="flex flex-col items-center gap-3">
+              {!awarenessData ? (
+                <p className="text-gray-500 text-sm h-16">No awareness data yet</p>
+              ) : revealed ? (
+                <>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={awarenessData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label={({ name, pct }) => `${name} (${pct}%)`}
                       >
-                        {awarenessData.yesPct > 10 ? `Yes ${awarenessData.yesPct}%` : ''}
-                      </div>
-                      <div
-                        className="bg-gray-600 flex items-center justify-center text-white text-xs font-semibold transition-all"
-                        style={{ width: `${awarenessData.noPct}%` }}
-                      >
-                        {awarenessData.noPct > 10 ? `No ${awarenessData.noPct}%` : ''}
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      {awarenessData.yes} yes, {awarenessData.no} no (n={awarenessData.total})
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-gray-500 text-sm h-16">Click Reveal to show</p>
-                )}
-              </div>
-            )}
-          </ChartCard>
-        )}
+                        <Cell fill="#34d399" />
+                        <Cell fill="#6b7280" />
+                      </Pie>
+                      <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
+                      <Legend verticalAlign="bottom" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <p className="text-xs text-gray-400">
+                    {awarenessData[0].value} yes, {awarenessData[1].value} no (n={awarenessData[0].value + awarenessData[1].value})
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm h-16">Click Reveal to show</p>
+              )}
+            </div>
+          )}
+        </ChartCard>
       </div>
     </div>
   );
