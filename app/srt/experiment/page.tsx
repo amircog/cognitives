@@ -170,13 +170,19 @@ export default function SrtExperiment() {
     try {
       const supabase = getSupabase();
       if (supabase) {
-        await supabase.from('srt_generation').insert({
+        const row: Record<string, unknown> = {
           session_id: sessionIdRef.current,
           participant_name: participantNameRef.current,
           sequence: finalResponses,
           main_is_a: mainIsARef.current,
           noticed_regularity: noticedRegularity,
-        });
+        };
+        const { error } = await supabase.from('srt_generation').insert(row);
+        if (error) {
+          // Retry without noticed_regularity if column doesn't exist yet
+          delete row.noticed_regularity;
+          await supabase.from('srt_generation').insert(row);
+        }
       }
     } catch (e) { console.error('Save generation error:', e); }
     router.push('/srt/thanks');
