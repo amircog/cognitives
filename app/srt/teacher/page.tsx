@@ -4,14 +4,14 @@ import { useEffect, useState, useMemo, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import {
   ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ErrorBar, ScatterChart, Scatter,
+  ResponsiveContainer, Legend, ErrorBar, ScatterChart, Scatter, Cell,
+  ReferenceLine,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { SEQUENCE_A, SEQUENCE_B } from '@/lib/srt/stimuli';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
-const TRIALS_PER_BLOCK = 108;
 const SEQUENCE_REPS_PER_BLOCK = 9;
 
 async function sha256(str: string): Promise<string> {
@@ -21,8 +21,8 @@ async function sha256(str: string): Promise<string> {
 
 function sem(values: number[]): number {
   if (values.length < 2) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1);
+  const m = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((a, b) => a + (b - m) ** 2, 0) / (values.length - 1);
   return Math.sqrt(variance / values.length);
 }
 
@@ -48,6 +48,7 @@ function sdCleanRows(rows: Row[]): Row[] {
 
 function excludeParticipants(rows: Row[]): { kept: Row[]; excludedIds: Set<string> } {
   const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  if (sessions.length < 2) return { kept: rows, excludedIds: new Set() };
   const participantStats = sessions.map(sid => {
     const sRows = rows.filter(r => r.session_id === sid);
     const correct = sRows.filter(r => r.correct && r.rt_ms != null);
@@ -72,6 +73,14 @@ function excludeParticipants(rows: Row[]): { kept: Row[]; excludedIds: Set<strin
   return { kept: rows.filter(r => !excludedIds.has(r.session_id)), excludedIds };
 }
 
+function parseSequence(raw: unknown): number[] {
+  if (Array.isArray(raw)) return raw as number[];
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+  return [];
+}
+
 type Row = {
   session_id: string;
   participant_name: string | null;
@@ -91,7 +100,7 @@ type Row = {
 type GenRow = {
   session_id: string;
   participant_name: string | null;
-  sequence: number[];
+  sequence: unknown;
   main_is_a: boolean;
   noticed_regularity: boolean | null;
 };
@@ -112,6 +121,16 @@ function ChartCard({ title, children }: { title: string; children: (revealed: bo
       {children(revealed)}
     </div>
   );
+}
+
+function rtDomain(values: (number | null)[], sems: number[]): [number, number] {
+  const valid = values.filter((v): v is number => v != null);
+  const maxSem = sems.length > 0 ? Math.max(...sems) : 0;
+  if (valid.length === 0) return [0, 1000];
+  const lo = Math.min(...valid) - maxSem;
+  const hi = Math.max(...valid) + maxSem;
+  const pad = Math.max((hi - lo) * 0.15, 15);
+  return [Math.floor((lo - pad) / 10) * 10, Math.ceil((hi + pad) / 10) * 10];
 }
 
 export default function SrtTeacher() {
@@ -137,44 +156,19 @@ export default function SrtTeacher() {
 
   const trialExcludedCount = rawRows.length - trialCleanedRows.length;
 
-  // Determine which participants used sequence A as main
-  const sessionSequenceMap = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const row of activeRows) {
-      if (map.has(row.session_id)) continue;
-      if (row.block_number !== 5) {
-        map.set(row.session_id, row.sequence_type === 'main');
-      }
-    }
-    // Infer from generation data if available
-    for (const g of genRows) {
-      if (!map.has(g.session_id)) map.set(g.session_id, g.main_is_a);
-    }
-    return map;
-  }, [activeRows, genRows]);
-
-  // We need to determine main_is_a per session from the data
-  // Block 5 is interference, blocks 1-4,6 are main
-  // We can check if the first trial's sequence_type is 'main' → that's their main sequence
-  // But we don't store which sequence it is (A or B) in the trial data
-  // We need to infer from target_location patterns
   const sessionIsAMap = useMemo(() => {
-    const SEQUENCE_A = [3, 4, 2, 3, 1, 2, 1, 4, 3, 2, 4, 1];
+    const SEQ_A = [3, 4, 2, 3, 1, 2, 1, 4, 3, 2, 4, 1];
     const map = new Map<string, boolean>();
     const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
     for (const sid of sessions) {
-      // Look at block 1 first few trials to determine sequence
       const b1 = activeRows
         .filter(r => r.session_id === sid && r.block_number === 1)
         .sort((a, b) => a.trial_in_block - b.trial_in_block)
         .slice(0, 12)
         .map(r => r.target_location);
       if (b1.length >= 12) {
-        // Check if matches sequence A starting from position 0
-        const matchesA = SEQUENCE_A.every((v, i) => b1[i] === v);
-        map.set(sid, matchesA);
+        map.set(sid, SEQ_A.every((v, i) => b1[i] === v));
       } else {
-        // Check from generation data
         const gen = genRows.find(g => g.session_id === sid);
         if (gen) map.set(sid, gen.main_is_a);
       }
@@ -194,7 +188,6 @@ export default function SrtTeacher() {
     const supabase = getSupabase();
     if (!supabase) { setLoading(false); return; }
 
-    // Fetch trial data
     const rows: Row[] = [];
     let from = 0;
     while (true) {
@@ -211,77 +204,75 @@ export default function SrtTeacher() {
     }
     setRawRows(rows);
 
-    // Fetch generation data
     const { data: gData } = await supabase.from('srt_generation').select('*');
     if (gData) setGenRows(gData as GenRow[]);
 
     setLoading(false);
   }
 
-  // RT by block chart data
+  // Active generation rows (respecting participant exclusion)
+  const activeGenRows = useMemo(() => {
+    return genRows.filter(g => !excludeParticipantsEnabled || !excludedSessions.has(g.session_id));
+  }, [genRows, excludeParticipantsEnabled, excludedSessions]);
+
+  // ── Chart 1: RT by block ──
   const blockChartData = useMemo(() => {
     if (activeRows.length === 0) return [];
     const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
-    const blockLabels = ['Block 1', 'Block 2', 'Block 3', 'Block 4', 'Block 5 (Int.)', 'Block 6'];
-
     return [1, 2, 3, 4, 5, 6].map(block => {
-      const participantMeans: number[] = [];
+      const pMeans: number[] = [];
       for (const sid of sessions) {
         const bRows = activeRows.filter(r => r.session_id === sid && r.block_number === block && r.correct && r.rt_ms != null);
-        if (bRows.length > 0) {
-          participantMeans.push(mean(bRows.map(r => r.rt_ms!)));
-        }
+        if (bRows.length > 0) pMeans.push(mean(bRows.map(r => r.rt_ms!)));
       }
       return {
         block: `Block ${block}`,
-        rt: participantMeans.length > 0 ? Math.round(mean(participantMeans)) : null,
-        sem: Math.round(sem(participantMeans)),
+        rt: pMeans.length > 0 ? Math.round(mean(pMeans)) : null,
+        sem: Math.round(sem(pMeans)),
       };
     });
   }, [activeRows]);
 
-  // RT by sequence repetition (1-54): 9 reps × 6 blocks
+  const blockDomain = useMemo(() => rtDomain(
+    blockChartData.map(d => d.rt),
+    blockChartData.map(d => d.sem),
+  ), [blockChartData]);
+
+  // ── Chart 2: RT by sequence repetition (1-54) ──
   const sequenceRepData = useMemo(() => {
     if (activeRows.length === 0) return [];
     const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
     const points: { rep: number; rt: number | null; sem: number }[] = [];
-
     for (let rep = 1; rep <= 54; rep++) {
-      // rep 1-9 = block 1, rep 10-18 = block 2, etc.
       const block = Math.ceil(rep / SEQUENCE_REPS_PER_BLOCK);
-      const repInBlock = ((rep - 1) % SEQUENCE_REPS_PER_BLOCK);
+      const repInBlock = (rep - 1) % SEQUENCE_REPS_PER_BLOCK;
       const trialStart = repInBlock * 12 + 1;
       const trialEnd = trialStart + 11;
-
-      const participantMeans: number[] = [];
+      const pMeans: number[] = [];
       for (const sid of sessions) {
         const rRows = activeRows.filter(r =>
-          r.session_id === sid &&
-          r.block_number === block &&
-          r.trial_in_block >= trialStart &&
-          r.trial_in_block <= trialEnd &&
+          r.session_id === sid && r.block_number === block &&
+          r.trial_in_block >= trialStart && r.trial_in_block <= trialEnd &&
           r.correct && r.rt_ms != null
         );
-        if (rRows.length > 0) {
-          participantMeans.push(mean(rRows.map(r => r.rt_ms!)));
-        }
+        if (rRows.length > 0) pMeans.push(mean(rRows.map(r => r.rt_ms!)));
       }
-      points.push({
-        rep,
-        rt: participantMeans.length > 0 ? Math.round(mean(participantMeans)) : null,
-        sem: Math.round(sem(participantMeans)),
-      });
+      points.push({ rep, rt: pMeans.length > 0 ? Math.round(mean(pMeans)) : null, sem: Math.round(sem(pMeans)) });
     }
     return points;
   }, [activeRows]);
 
-  // RT by block separated by sequence assignment (A vs B as main)
+  const repDomain = useMemo(() => rtDomain(
+    sequenceRepData.map(d => d.rt),
+    sequenceRepData.map(d => d.sem),
+  ), [sequenceRepData]);
+
+  // ── Chart 3: RT by block split by sequence A vs B ──
   const blockBySequenceData = useMemo(() => {
     if (activeRows.length === 0) return [];
     const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
     const sessionsA = sessions.filter(s => sessionIsAMap.get(s) === true);
     const sessionsB = sessions.filter(s => sessionIsAMap.get(s) === false);
-
     return [1, 2, 3, 4, 5, 6].map(block => {
       const meansA: number[] = [];
       for (const sid of sessionsA) {
@@ -303,7 +294,12 @@ export default function SrtTeacher() {
     });
   }, [activeRows, sessionIsAMap]);
 
-  // Scatter: RT vs Accuracy per participant
+  const seqDomain = useMemo(() => rtDomain(
+    [...blockBySequenceData.map(d => d.rtA), ...blockBySequenceData.map(d => d.rtB)],
+    [...blockBySequenceData.map(d => d.semA), ...blockBySequenceData.map(d => d.semB)],
+  ), [blockBySequenceData]);
+
+  // ── Chart 4: Scatter RT vs Accuracy ──
   const scatterData = useMemo(() => {
     if (activeRows.length === 0) return [];
     const sessions = Array.from(new Set(activeRows.map(r => r.session_id)));
@@ -317,42 +313,51 @@ export default function SrtTeacher() {
     });
   }, [activeRows]);
 
-  // Generation accuracy per serial position (exactly 1 response per participant per position)
+  // ── Chart 5: Generation accuracy per serial position ──
   const generationAccData = useMemo(() => {
-    if (genRows.length === 0) return [];
+    if (activeGenRows.length === 0) return [];
     const positionCorrect: number[][] = Array.from({ length: 12 }, () => []);
-
-    for (const g of genRows) {
-      if (excludeParticipantsEnabled && excludedSessions.has(g.session_id)) continue;
+    for (const g of activeGenRows) {
       const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
-      const clicks = g.sequence as number[];
+      const clicks = parseSequence(g.sequence);
       for (let i = 0; i < Math.min(clicks.length, 12); i++) {
         positionCorrect[i].push(clicks[i] === mainSeq[i] ? 100 : 0);
       }
     }
-
     return positionCorrect.map((vals, i) => ({
       position: i + 1,
       accuracy: vals.length > 0 ? Math.round(mean(vals)) : 0,
       sem: vals.length > 0 ? Math.round(sem(vals)) : 0,
     }));
-  }, [genRows, excludeParticipantsEnabled, excludedSessions]);
+  }, [activeGenRows]);
 
-  // Individual generation accuracy scatter (one dot per participant, jittered)
+  // ── Chart 6: Individual generation accuracy scatter ──
   const genScatterData = useMemo(() => {
-    if (genRows.length === 0) return [];
-    return genRows
-      .filter(g => !excludeParticipantsEnabled || !excludedSessions.has(g.session_id))
-      .map(g => {
-        const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
-        const clicks = g.sequence as number[];
-        const nCorrect = clicks.slice(0, 12).filter((c, i) => c === mainSeq[i]).length;
-        const acc = Math.round((nCorrect / 12) * 100 * 10) / 10;
-        const jitter = (Math.random() - 0.5) * 0.6;
-        const name = g.participant_name ?? g.session_id.slice(0, 8);
-        return { name, accuracy: acc, jitter: 1 + jitter, noticed: g.noticed_regularity };
-      });
-  }, [genRows, excludeParticipantsEnabled, excludedSessions]);
+    if (activeGenRows.length === 0) return [];
+    return activeGenRows.map(g => {
+      const mainSeq = g.main_is_a ? SEQUENCE_A : SEQUENCE_B;
+      const clicks = parseSequence(g.sequence);
+      const nCorrect = clicks.slice(0, 12).filter((c, i) => c === mainSeq[i]).length;
+      const acc = Math.round((nCorrect / Math.min(clicks.length, 12)) * 100 * 10) / 10;
+      const jitter = (Math.random() - 0.5) * 0.6;
+      const name = g.participant_name ?? g.session_id.slice(0, 8);
+      return { name, accuracy: acc, jitter: 1 + jitter, noticed: g.noticed_regularity };
+    });
+  }, [activeGenRows]);
+
+  // ── Chart 7: Awareness bar ──
+  const awarenessData = useMemo(() => {
+    if (activeGenRows.length === 0) return null;
+    const yes = activeGenRows.filter(g => g.noticed_regularity === true).length;
+    const no = activeGenRows.filter(g => g.noticed_regularity === false).length;
+    const total = yes + no;
+    if (total === 0) return null;
+    return {
+      yesPct: Math.round((yes / total) * 100),
+      noPct: Math.round((no / total) * 100),
+      yes, no, total,
+    };
+  }, [activeGenRows]);
 
   const downloadCsv = () => {
     if (activeRows.length === 0) return;
@@ -414,7 +419,7 @@ export default function SrtTeacher() {
           </div>
         </div>
 
-        {/* Stats summary */}
+        {/* Stats */}
         <div className="flex gap-4 flex-wrap">
           <StatBox label="Participants" value={nParticipants} />
           <StatBox label="Seq A main" value={nParticipantsA} />
@@ -425,22 +430,11 @@ export default function SrtTeacher() {
         {/* Toggles */}
         {rawRows.length > 0 && (
           <div className="flex flex-col items-center gap-3">
-            {/* Trial SD-clean toggle */}
             <div className="flex rounded-xl border border-border bg-card overflow-hidden">
-              <button
-                onClick={() => setMode('raw')}
-                className={`px-5 py-2 text-sm font-medium transition-colors ${
-                  mode === 'raw' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
-                }`}
-              >
+              <button onClick={() => setMode('raw')} className={`px-5 py-2 text-sm font-medium transition-colors ${mode === 'raw' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
                 Raw Data
               </button>
-              <button
-                onClick={() => setMode('sdclean')}
-                className={`px-5 py-2 text-sm font-medium transition-colors ${
-                  mode === 'sdclean' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
-                }`}
-              >
+              <button onClick={() => setMode('sdclean')} className={`px-5 py-2 text-sm font-medium transition-colors ${mode === 'sdclean' ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
                 SD-Clean (±2.5)
               </button>
             </div>
@@ -451,23 +445,11 @@ export default function SrtTeacher() {
                   : 'No trials excluded'
                 : `${rawRows.length} trials`}
             </p>
-
-            {/* Participant exclusion toggle */}
             <div className="flex rounded-xl border border-border bg-card overflow-hidden">
-              <button
-                onClick={() => setExcludeParticipantsEnabled(false)}
-                className={`px-5 py-2 text-sm font-medium transition-colors ${
-                  !excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
-                }`}
-              >
+              <button onClick={() => setExcludeParticipantsEnabled(false)} className={`px-5 py-2 text-sm font-medium transition-colors ${!excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
                 All Participants
               </button>
-              <button
-                onClick={() => setExcludeParticipantsEnabled(true)}
-                className={`px-5 py-2 text-sm font-medium transition-colors ${
-                  excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'
-                }`}
-              >
+              <button onClick={() => setExcludeParticipantsEnabled(true)} className={`px-5 py-2 text-sm font-medium transition-colors ${excludeParticipantsEnabled ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
                 Exclude Outliers (±2.5 SD)
               </button>
             </div>
@@ -488,7 +470,7 @@ export default function SrtTeacher() {
               <ComposedChart data={blockChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="block" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                <YAxis stroke="#9ca3af" domain={blockDomain} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                 <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                 <Legend verticalAlign="top" />
                 {revealed && (
@@ -508,11 +490,13 @@ export default function SrtTeacher() {
               <ComposedChart data={sequenceRepData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="rep" stroke="#9ca3af" label={{ value: 'Sequence repetition', position: 'insideBottom', offset: -5, fill: '#9ca3af' }} />
-                <YAxis stroke="#9ca3af" label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                <YAxis stroke="#9ca3af" domain={repDomain} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                 <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                 <Legend verticalAlign="top" />
                 {revealed && (
-                  <Line type="monotone" dataKey="rt" stroke="#34d399" strokeWidth={1.5} name="Mean RT" dot={false} />
+                  <Line type="monotone" dataKey="rt" stroke="#34d399" strokeWidth={1.5} name="Mean RT" dot={false}>
+                    <ErrorBar dataKey="sem" width={2} strokeWidth={1} stroke="#6b728080" direction="y" />
+                  </Line>
                 )}
               </ComposedChart>
             </ResponsiveContainer>
@@ -526,7 +510,7 @@ export default function SrtTeacher() {
               <ComposedChart data={blockBySequenceData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="block" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                <YAxis stroke="#9ca3af" domain={seqDomain} label={{ value: 'RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                 <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                 <Legend verticalAlign="top" />
                 {revealed && (
@@ -566,17 +550,15 @@ export default function SrtTeacher() {
                   }}
                   cursor={{ strokeDasharray: '3 3' }}
                 />
-                {revealed && (
-                  <Scatter data={scatterData} fill="#34d399" name="Participants" />
-                )}
+                {revealed && <Scatter data={scatterData} fill="#34d399" name="Participants" />}
               </ScatterChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
 
-        {/* Chart 5: Generation task accuracy per serial position */}
+        {/* Chart 5: Generation accuracy per serial position */}
         {generationAccData.length > 0 && (
-          <ChartCard title="Generation Task: Accuracy by Sequence Position">
+          <ChartCard title={`Generation Task: Accuracy by Sequence Position (n=${activeGenRows.length})`}>
             {(revealed) => (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={generationAccData}>
@@ -585,6 +567,7 @@ export default function SrtTeacher() {
                   <YAxis stroke="#9ca3af" domain={[0, 100]} label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                   <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                   <Legend verticalAlign="top" />
+                  <ReferenceLine y={25} stroke="#6b7280" strokeDasharray="6 4" label={{ value: 'Chance (25%)', fill: '#6b7280', fontSize: 11, position: 'right' }} />
                   {revealed && (
                     <Bar dataKey="accuracy" fill="#34d399" name="Accuracy (%)">
                       <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
@@ -602,9 +585,10 @@ export default function SrtTeacher() {
             {(revealed) => (
               <ResponsiveContainer width="100%" height={300}>
                 <ScatterChart>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis type="number" dataKey="jitter" stroke="#9ca3af" hide />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal vertical={false} />
+                  <XAxis type="number" dataKey="jitter" stroke="#9ca3af" hide domain={[0.2, 1.8]} />
                   <YAxis type="number" dataKey="accuracy" stroke="#9ca3af" domain={[0, 100]} label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                  <ReferenceLine y={25} stroke="#6b7280" strokeDasharray="6 4" />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
@@ -619,11 +603,42 @@ export default function SrtTeacher() {
                     }}
                     cursor={{ strokeDasharray: '3 3' }}
                   />
-                  {revealed && (
-                    <Scatter data={genScatterData} fill="#34d399" name="Participants" />
-                  )}
+                  {revealed && <Scatter data={genScatterData} fill="#34d399" name="Participants" />}
                 </ScatterChart>
               </ResponsiveContainer>
+            )}
+          </ChartCard>
+        )}
+
+        {/* Chart 7: Awareness — noticed regularity */}
+        {awarenessData && (
+          <ChartCard title="Did participants notice a regularity?">
+            {(revealed) => (
+              <div className="flex flex-col items-center gap-3">
+                {revealed ? (
+                  <>
+                    <div className="w-full max-w-sm h-10 flex rounded-lg overflow-hidden border border-gray-600">
+                      <div
+                        className="bg-emerald-500 flex items-center justify-center text-white text-xs font-semibold transition-all"
+                        style={{ width: `${awarenessData.yesPct}%` }}
+                      >
+                        {awarenessData.yesPct > 10 ? `Yes ${awarenessData.yesPct}%` : ''}
+                      </div>
+                      <div
+                        className="bg-gray-600 flex items-center justify-center text-white text-xs font-semibold transition-all"
+                        style={{ width: `${awarenessData.noPct}%` }}
+                      >
+                        {awarenessData.noPct > 10 ? `No ${awarenessData.noPct}%` : ''}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {awarenessData.yes} yes, {awarenessData.no} no (n={awarenessData.total})
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-gray-500 text-sm h-16">Click Reveal to show</p>
+                )}
+              </div>
             )}
           </ChartCard>
         )}
