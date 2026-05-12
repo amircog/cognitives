@@ -625,7 +625,7 @@ export default function SrtTeacher() {
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
-                        label={({ name, pct }) => `${name} (${pct}%)`}
+                        label={({ name, payload }) => `${name} (${(payload as { pct: number }).pct}%)`}
                       >
                         <Cell fill="#34d399" />
                         <Cell fill="#6b7280" />
