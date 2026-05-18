@@ -132,7 +132,7 @@ function computeRLIndices(rows: Row[]): ParticipantRL[] {
       else { urStay += stayed; urN++; }
     }
 
-    if (rcN + rrN + ucN + urN < 10) continue;
+    if (rcN + rrN + ucN + urN < 2) continue;
 
     const pRC = rcN > 0 ? rcStay / rcN : 0.5;
     const pRR = rrN > 0 ? rrStay / rrN : 0.5;
@@ -510,8 +510,8 @@ export default function TwoStepTeacher() {
               )}
             </ChartCard>
 
-            {/* Individual MB vs MF scatter */}
-            <ChartCard title="Individual Model-Based vs. Model-Free Indices">
+            {/* Chart (c): Individual MB vs MF scatter */}
+            <ChartCard title="(c) Individual Model-Based vs. Model-Free Indices">
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
                   <ScatterChart margin={{ bottom: 20 }}>
@@ -543,9 +543,9 @@ export default function TwoStepTeacher() {
               )}
             </ChartCard>
 
-            {/* Chart 3: Reward probability walk for one participant */}
+            {/* Chart (d): Reward probability walk for one participant */}
             <ChartCard
-              title="(c) Reward Probability Walk"
+              title="(d) Reward Probability Walk"
               headerExtra={
                 participantList.length > 0 ? (
                   <select
@@ -583,8 +583,8 @@ export default function TwoStepTeacher() {
               )}
             </ChartCard>
 
-            {/* Chart 4: Coins per participant — jittered scatter */}
-            <ChartCard title="(d) Coins Collected per Participant">
+            {/* Chart (e): Coins per participant — jittered scatter */}
+            <ChartCard title="(e) Coins Collected per Participant">
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
                   <ScatterChart margin={{ bottom: 10 }}>
@@ -619,7 +619,7 @@ export default function TwoStepTeacher() {
 
             {/* Charts (e) and (f) side by side: RT vs MB and RT vs MF */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ChartCard title="(e) RT vs. Model-Based Index">
+              <ChartCard title="(f) RT vs. Model-Based Index">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={300}>
                     <ScatterChart margin={{ bottom: 20 }}>
@@ -651,7 +651,7 @@ export default function TwoStepTeacher() {
                 )}
               </ChartCard>
 
-              <ChartCard title="(f) RT vs. Model-Free Index">
+              <ChartCard title="(g) RT vs. Model-Free Index">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={300}>
                     <ScatterChart margin={{ bottom: 20 }}>

@@ -29,7 +29,7 @@ export const ISI_MS = 1000;
 
 // ── Trial counts ────────────────────────────────────────────────────────────
 export const PRACTICE_TRIALS = 10;
-export const MAIN_TRIALS = 201;
+export const MAIN_TRIALS = 100;
 
 // ── Reward probability drift ────────────────────────────────────────────────
 const DRIFT_SD = 0.025;
