@@ -310,10 +310,10 @@ export default function TwoStepTeacher() {
     if (activeRows.length === 0) return [];
     const ss = computeStaySwitch(activeRows);
     return [
-      { name: 'Rew + Common', value: Math.round(mean(ss.rewCommon) * 10) / 10, sem: Math.round(sem(ss.rewCommon) * 10) / 10 },
-      { name: 'Rew + Rare', value: Math.round(mean(ss.rewRare) * 10) / 10, sem: Math.round(sem(ss.rewRare) * 10) / 10 },
-      { name: 'Unrew + Common', value: Math.round(mean(ss.unrCommon) * 10) / 10, sem: Math.round(sem(ss.unrCommon) * 10) / 10 },
-      { name: 'Unrew + Rare', value: Math.round(mean(ss.unrRare) * 10) / 10, sem: Math.round(sem(ss.unrRare) * 10) / 10 },
+      { name: 'Rewarded + Common', value: Math.round(mean(ss.rewCommon) * 10) / 10, sem: Math.round(sem(ss.rewCommon) * 10) / 10 },
+      { name: 'Rewarded + Rare', value: Math.round(mean(ss.rewRare) * 10) / 10, sem: Math.round(sem(ss.rewRare) * 10) / 10 },
+      { name: 'Unrewarded + Common', value: Math.round(mean(ss.unrCommon) * 10) / 10, sem: Math.round(sem(ss.unrCommon) * 10) / 10 },
+      { name: 'Unrewarded + Rare', value: Math.round(mean(ss.unrRare) * 10) / 10, sem: Math.round(sem(ss.unrRare) * 10) / 10 },
     ];
   }, [activeRows]);
 
@@ -345,11 +345,14 @@ export default function TwoStepTeacher() {
       }));
   }, [activeRows, selectedParticipant]);
 
-  // ── Chart 4: Coins per participant ────────────────────────────────────────
-  const coinsData = useMemo(() => {
-    return rlData
-      .map(p => ({ name: p.name, coins: p.coins, totalTrials: p.totalTrials }))
-      .sort((a, b) => b.coins - a.coins);
+  // ── Chart 4: Coins per participant (jittered scatter) ───────────────────
+  const coinsScatterData = useMemo(() => {
+    return rlData.map((p, i) => ({
+      name: p.name,
+      coins: p.coins,
+      totalTrials: p.totalTrials,
+      jitter: Math.sin(i * 7919 + 0.5) * 0.4,
+    }));
   }, [rlData]);
 
   const downloadCsv = useCallback(async () => {
@@ -507,6 +510,39 @@ export default function TwoStepTeacher() {
               )}
             </ChartCard>
 
+            {/* Individual MB vs MF scatter */}
+            <ChartCard title="Individual Model-Based vs. Model-Free Indices">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <ScatterChart margin={{ bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis type="number" dataKey="mfIndex" stroke="#9ca3af" name="MF Index"
+                      label={{ value: 'Model-Free Index', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                    <YAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
+                      label={{ value: 'Model-Based Index', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as ParticipantRL;
+                        return (
+                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                            <p className="text-white font-semibold">{d.name}</p>
+                            <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
+                            <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    {revealed && (
+                      <Scatter data={rlData} fill="#34d399" name="Participants">
+                        {rlData.map((_, i) => <Cell key={i} fill="#34d399" />)}
+                      </Scatter>
+                    )}
+                  </ScatterChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
             {/* Chart 3: Reward probability walk for one participant */}
             <ChartCard
               title="(c) Reward Probability Walk"
@@ -547,17 +583,17 @@ export default function TwoStepTeacher() {
               )}
             </ChartCard>
 
-            {/* Chart 4: Coins per participant */}
+            {/* Chart 4: Coins per participant — jittered scatter */}
             <ChartCard title="(d) Coins Collected per Participant">
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={coinsData} barCategoryGap="15%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
-                    <YAxis stroke="#9ca3af"
-                      label={{ value: 'Coins', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                  <ScatterChart margin={{ bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal vertical={false} />
+                    <XAxis type="number" dataKey="jitter" stroke="#9ca3af" domain={[-1, 1]}
+                      tick={false} axisLine={false} />
+                    <YAxis type="number" dataKey="coins" stroke="#9ca3af"
+                      label={{ value: 'Coins Collected', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
                     <Tooltip
-                      contentStyle={{ background: '#1e293b', border: '1px solid #374151' }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const d = payload[0].payload as { name: string; coins: number; totalTrials: number };
@@ -572,46 +608,81 @@ export default function TwoStepTeacher() {
                       }}
                     />
                     {revealed && (
-                      <Bar dataKey="coins" fill="#facc15" name="Coins" radius={[4, 4, 0, 0]} />
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </ChartCard>
-
-            {/* Chart 5: RT vs MB index scatter */}
-            <ChartCard title="(e) Individual RT vs. Model-Based Index">
-              {(revealed) => (
-                <ResponsiveContainer width="100%" height={300}>
-                  <ScatterChart margin={{ bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
-                      label={{ value: 'Model-Based Index', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
-                    <YAxis type="number" dataKey="meanRt" stroke="#9ca3af" name="Mean RT"
-                      label={{ value: 'Mean Stage 1 RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload as ParticipantRL;
-                        return (
-                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
-                            <p className="text-white font-semibold">{d.name}</p>
-                            <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
-                            <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
-                            <p className="text-gray-300">RT: {Math.round(d.meanRt)} ms</p>
-                          </div>
-                        );
-                      }}
-                    />
-                    {revealed && (
-                      <Scatter data={rlData} fill="#8b5cf6" name="Participants">
-                        {rlData.map((_, i) => <Cell key={i} fill="#8b5cf6" />)}
+                      <Scatter data={coinsScatterData} fill="#facc15" name="Participants">
+                        {coinsScatterData.map((_, i) => <Cell key={i} fill="#facc15" />)}
                       </Scatter>
                     )}
                   </ScatterChart>
                 </ResponsiveContainer>
               )}
             </ChartCard>
+
+            {/* Charts (e) and (f) side by side: RT vs MB and RT vs MF */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ChartCard title="(e) RT vs. Model-Based Index">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ScatterChart margin={{ bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
+                        label={{ value: 'Model-Based Index', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                      <YAxis type="number" dataKey="meanRt" stroke="#9ca3af" name="Mean RT"
+                        label={{ value: 'Mean RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload as ParticipantRL;
+                          return (
+                            <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                              <p className="text-white font-semibold">{d.name}</p>
+                              <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
+                              <p className="text-gray-300">RT: {Math.round(d.meanRt)} ms</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      {revealed && (
+                        <Scatter data={rlData} fill="#8b5cf6" name="Participants">
+                          {rlData.map((_, i) => <Cell key={i} fill="#8b5cf6" />)}
+                        </Scatter>
+                      )}
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              <ChartCard title="(f) RT vs. Model-Free Index">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ScatterChart margin={{ bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="mfIndex" stroke="#9ca3af" name="MF Index"
+                        label={{ value: 'Model-Free Index', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                      <YAxis type="number" dataKey="meanRt" stroke="#9ca3af" name="Mean RT"
+                        label={{ value: 'Mean RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload as ParticipantRL;
+                          return (
+                            <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                              <p className="text-white font-semibold">{d.name}</p>
+                              <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
+                              <p className="text-gray-300">RT: {Math.round(d.meanRt)} ms</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      {revealed && (
+                        <Scatter data={rlData} fill="#f97316" name="Participants">
+                          {rlData.map((_, i) => <Cell key={i} fill="#f97316" />)}
+                        </Scatter>
+                      )}
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
 
           </div>
         )}
