@@ -1,0 +1,535 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, FormEvent, useCallback } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ErrorBar, ScatterChart, Scatter, Cell, Legend,
+} from 'recharts';
+import { GraduationCap, RefreshCw, Download } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
+
+const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
+
+async function sha256(str: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function mean(vals: number[]): number {
+  if (vals.length === 0) return 0;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function sem(vals: number[]): number {
+  if (vals.length < 2) return 0;
+  const m = mean(vals);
+  const v = vals.reduce((a, x) => a + (x - m) ** 2, 0) / (vals.length - 1);
+  return Math.sqrt(v / vals.length);
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type Row = {
+  session_id: string;
+  participant_name: string | null;
+  trial_index: number;
+  is_practice: boolean;
+  stage1_choice: string;
+  stage1_stimulus: string;
+  stage1_rt_ms: number | null;
+  transition_type: string;
+  stage2_state: string;
+  stage2_choice: string;
+  stage2_stimulus: string;
+  stage2_rt_ms: number | null;
+  rewarded: boolean;
+  reward_prob_s2a_left: number;
+  reward_prob_s2a_right: number;
+  reward_prob_s2b_left: number;
+  reward_prob_s2b_right: number;
+  missed_stage1: boolean;
+  missed_stage2: boolean;
+  created_at: string;
+};
+
+// ── Analysis helpers ─────────────────────────────────────────────────────────
+
+function computeStaySwitch(rows: Row[]): { rewCommon: number[]; rewRare: number[]; unrCommon: number[]; unrRare: number[] } {
+  const bySession: Record<string, Row[]> = {};
+  for (const r of rows) {
+    if (r.missed_stage1 || r.missed_stage2) continue;
+    (bySession[r.session_id] ??= []).push(r);
+  }
+
+  const rewCommon: number[] = [];
+  const rewRare: number[] = [];
+  const unrCommon: number[] = [];
+  const unrRare: number[] = [];
+
+  for (const trials of Object.values(bySession)) {
+    const sorted = trials.sort((a, b) => a.trial_index - b.trial_index);
+    let rc = 0, rcN = 0, rr = 0, rrN = 0, uc = 0, ucN = 0, ur = 0, urN = 0;
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      const stayed = curr.stage1_choice === prev.stage1_choice ? 1 : 0;
+      const wasRewarded = prev.rewarded;
+      const wasCommon = prev.transition_type === 'common';
+
+      if (wasRewarded && wasCommon) { rc += stayed; rcN++; }
+      else if (wasRewarded && !wasCommon) { rr += stayed; rrN++; }
+      else if (!wasRewarded && wasCommon) { uc += stayed; ucN++; }
+      else { ur += stayed; urN++; }
+    }
+
+    if (rcN > 0) rewCommon.push((rc / rcN) * 100);
+    if (rrN > 0) rewRare.push((rr / rrN) * 100);
+    if (ucN > 0) unrCommon.push((uc / ucN) * 100);
+    if (urN > 0) unrRare.push((ur / urN) * 100);
+  }
+
+  return { rewCommon, rewRare, unrCommon, unrRare };
+}
+
+interface ParticipantRL {
+  name: string;
+  sessionId: string;
+  mbIndex: number;
+  mfIndex: number;
+  meanRt: number;
+}
+
+function computeRLIndices(rows: Row[]): ParticipantRL[] {
+  const bySession: Record<string, Row[]> = {};
+  for (const r of rows) {
+    if (r.missed_stage1 || r.missed_stage2) continue;
+    (bySession[r.session_id] ??= []).push(r);
+  }
+
+  const results: ParticipantRL[] = [];
+
+  for (const [sessionId, trials] of Object.entries(bySession)) {
+    const sorted = trials.sort((a, b) => a.trial_index - b.trial_index);
+    const name = sorted[0]?.participant_name ?? sessionId.slice(0, 8);
+
+    const stays: { reward: number; transition: number; stay: number }[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      stays.push({
+        reward: prev.rewarded ? 1 : -1,
+        transition: prev.transition_type === 'common' ? 1 : -1,
+        stay: curr.stage1_choice === prev.stage1_choice ? 1 : 0,
+      });
+    }
+
+    if (stays.length < 10) continue;
+
+    const n = stays.length;
+    const stayMean = mean(stays.map(s => s.stay));
+
+    const rewVals = stays.map(s => s.reward);
+    const transVals = stays.map(s => s.transition);
+    const interVals = stays.map((s, i) => rewVals[i] * transVals[i]);
+    const stayVals = stays.map(s => s.stay - stayMean);
+
+    const rewMean = mean(rewVals);
+    const transMean = mean(transVals);
+    const interMean = mean(interVals);
+
+    const rewCentered = rewVals.map(v => v - rewMean);
+    const interCentered = interVals.map(v => v - interMean);
+
+    const mfIndex = mean(rewCentered.map((r, i) => r * stayVals[i])) /
+      (mean(rewCentered.map(r => r * r)) || 1);
+    const mbIndex = mean(interCentered.map((r, i) => r * stayVals[i])) /
+      (mean(interCentered.map(r => r * r)) || 1);
+
+    const rts = sorted.filter(r => r.stage1_rt_ms != null).map(r => r.stage1_rt_ms!);
+    const meanRt = rts.length > 0 ? mean(rts) : 0;
+
+    results.push({ name, sessionId, mbIndex, mfIndex, meanRt });
+  }
+
+  return results;
+}
+
+// ── Trial exclusion ──────────────────────────────────────────────────────────
+
+function sdCleanTrials(rows: Row[]): Row[] {
+  const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  const cleaned: Row[] = [];
+  for (const sid of sessions) {
+    const sRows = rows.filter(r => r.session_id === sid);
+    const rts = sRows.filter(r => r.stage1_rt_ms != null && !r.missed_stage1).map(r => r.stage1_rt_ms!);
+    if (rts.length < 2) { cleaned.push(...sRows); continue; }
+    const m = mean(rts);
+    const sd = Math.sqrt(rts.reduce((a, b) => a + (b - m) ** 2, 0) / (rts.length - 1));
+    const lo = m - 2.5 * sd, hi = m + 2.5 * sd;
+    cleaned.push(...sRows.filter(r =>
+      r.stage1_rt_ms == null || r.missed_stage1 || (r.stage1_rt_ms >= lo && r.stage1_rt_ms <= hi)
+    ));
+  }
+  return cleaned;
+}
+
+function excludeParticipants(rows: Row[]): { kept: Row[]; excludedIds: Set<string> } {
+  const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  if (sessions.length < 2) return { kept: rows, excludedIds: new Set() };
+
+  const pStats = sessions.map(sid => {
+    const sRows = rows.filter(r => r.session_id === sid);
+    const nonMissed = sRows.filter(r => !r.missed_stage1 && !r.missed_stage2);
+    const completionRate = sRows.length > 0 ? nonMissed.length / sRows.length : 0;
+    const rts = nonMissed.filter(r => r.stage1_rt_ms != null).map(r => r.stage1_rt_ms!);
+    const rt = rts.length > 0 ? mean(rts) : 0;
+    return { sid, completionRate, rt };
+  });
+
+  const rts = pStats.map(p => p.rt);
+  const comps = pStats.map(p => p.completionRate);
+  const rtM = mean(rts);
+  const rtSd = Math.sqrt(rts.reduce((a, b) => a + (b - rtM) ** 2, 0) / (rts.length - 1));
+  const compM = mean(comps);
+  const compSd = Math.sqrt(comps.reduce((a, b) => a + (b - compM) ** 2, 0) / (comps.length - 1));
+
+  const excludedIds = new Set<string>();
+  for (const p of pStats) {
+    if (p.rt < rtM - 2.5 * rtSd || p.rt > rtM + 2.5 * rtSd) excludedIds.add(p.sid);
+    if (p.completionRate < compM - 2.5 * compSd) excludedIds.add(p.sid);
+  }
+
+  return { kept: rows.filter(r => !excludedIds.has(r.session_id)), excludedIds };
+}
+
+// ── Components ───────────────────────────────────────────────────────────────
+
+function ChartCard({ title, children }: { title: string; children: (revealed: boolean) => React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-gray-200">{title}</h3>
+        <button
+          onClick={() => setRevealed(r => !r)}
+          className="text-xs px-3 py-1 rounded-full border border-gray-600 text-gray-400 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
+        >
+          {revealed ? 'Hide' : 'Reveal'}
+        </button>
+      </div>
+      {children(revealed)}
+    </div>
+  );
+}
+
+function StatBox({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="bg-card border border-border rounded-xl px-5 py-3">
+      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xl font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+export default function TwoStepTeacher() {
+  const [authed, setAuthed] = useState(false);
+  const [pw, setPw] = useState('');
+  const [pwError, setPwError] = useState(false);
+  const [rawRows, setRawRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [trialMode, setTrialMode] = useState<'raw' | 'sdclean'>('raw');
+  const [excludeEnabled, setExcludeEnabled] = useState(false);
+
+  const trialCleaned = useMemo(
+    () => trialMode === 'sdclean' ? sdCleanTrials(rawRows) : rawRows,
+    [rawRows, trialMode],
+  );
+
+  const { activeRows, excludedSessions } = useMemo(() => {
+    if (!excludeEnabled) return { activeRows: trialCleaned, excludedSessions: new Set<string>() };
+    const { kept, excludedIds } = excludeParticipants(trialCleaned);
+    return { activeRows: kept, excludedSessions: excludedIds };
+  }, [trialCleaned, excludeEnabled]);
+
+  const trialExcludedCount = rawRows.length - trialCleaned.length;
+  const nParticipants = new Set(activeRows.map(r => r.session_id)).size;
+
+  async function handleLogin(e: FormEvent) {
+    e.preventDefault();
+    if (await sha256(pw) === PW_HASH) { setAuthed(true); fetchData(); }
+    else setPwError(true);
+  }
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const supabase = getSupabase();
+    if (!supabase) { setLoading(false); return; }
+    const rows: Row[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('two_step_results')
+        .select('*')
+        .eq('is_practice', false)
+        .order('created_at', { ascending: true })
+        .range(from, from + 999);
+      if (error || !data || data.length === 0) break;
+      rows.push(...(data as Row[]));
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+    setRawRows(rows);
+    setLoading(false);
+  }, []);
+
+  // ── Chart 1: Stay probability bar plot ─────────────────────────────────────
+  const stayData = useMemo(() => {
+    if (activeRows.length === 0) return [];
+    const ss = computeStaySwitch(activeRows);
+    return [
+      { name: 'Rew + Common', value: Math.round(mean(ss.rewCommon) * 10) / 10, sem: Math.round(sem(ss.rewCommon) * 10) / 10 },
+      { name: 'Rew + Rare', value: Math.round(mean(ss.rewRare) * 10) / 10, sem: Math.round(sem(ss.rewRare) * 10) / 10 },
+      { name: 'Unrew + Common', value: Math.round(mean(ss.unrCommon) * 10) / 10, sem: Math.round(sem(ss.unrCommon) * 10) / 10 },
+      { name: 'Unrew + Rare', value: Math.round(mean(ss.unrRare) * 10) / 10, sem: Math.round(sem(ss.unrRare) * 10) / 10 },
+    ];
+  }, [activeRows]);
+
+  // ── Chart 2–4: RL indices ──────────────────────────────────────────────────
+  const rlData = useMemo(() => computeRLIndices(activeRows), [activeRows]);
+
+  const rlBarData = useMemo(() => {
+    if (rlData.length === 0) return [];
+    const mbVals = rlData.map(p => p.mbIndex);
+    const mfVals = rlData.map(p => p.mfIndex);
+    return [
+      { name: 'Model-Based', value: Math.round(mean(mbVals) * 1000) / 1000, sem: Math.round(sem(mbVals) * 1000) / 1000 },
+      { name: 'Model-Free', value: Math.round(mean(mfVals) * 1000) / 1000, sem: Math.round(sem(mfVals) * 1000) / 1000 },
+    ];
+  }, [rlData]);
+
+  const downloadCsv = useCallback(async () => {
+    if (activeRows.length === 0) return;
+    const headers = Object.keys(activeRows[0]).join(',');
+    const csv = [headers, ...activeRows.map(r => Object.values(r as unknown as Record<string, unknown>).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `two_step_results_${trialMode}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [activeRows, trialMode]);
+
+  if (!authed) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4">
+        <form onSubmit={handleLogin} className="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-full max-w-sm flex flex-col gap-4">
+          <div className="flex items-center gap-2 text-emerald-400 mb-2">
+            <GraduationCap className="w-6 h-6" />
+            <h1 className="text-lg font-bold">Two-Step Task — Teacher Dashboard</h1>
+          </div>
+          <input
+            type="password" value={pw}
+            onChange={e => { setPw(e.target.value); setPwError(false); }}
+            placeholder="Password"
+            className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400"
+          />
+          {pwError && <p className="text-red-400 text-xs">Incorrect password</p>}
+          <button type="submit" className="py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors">Enter</button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] px-4 py-8">
+      <div className="max-w-5xl mx-auto flex flex-col gap-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <GraduationCap className="w-6 h-6" />
+            <h1 className="text-xl font-bold">Two-Step Task — Teacher Dashboard</h1>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={downloadCsv} className="p-2 rounded-lg border border-gray-600 text-gray-400 hover:text-emerald-400 hover:border-emerald-400 transition-colors">
+              <Download className="w-4 h-4" />
+            </button>
+            <button onClick={fetchData} className="p-2 rounded-lg border border-gray-600 text-gray-400 hover:text-emerald-400 hover:border-emerald-400 transition-colors">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex gap-4 flex-wrap">
+          <StatBox label="Participants" value={nParticipants} />
+          <StatBox label="Total Trials" value={activeRows.length} />
+        </div>
+
+        {/* Toggles */}
+        {rawRows.length > 0 && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button onClick={() => setTrialMode('raw')} className={`px-5 py-2 text-sm font-medium transition-colors ${trialMode === 'raw' ? 'bg-emerald-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                Raw Data
+              </button>
+              <button onClick={() => setTrialMode('sdclean')} className={`px-5 py-2 text-sm font-medium transition-colors ${trialMode === 'sdclean' ? 'bg-emerald-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                SD-Clean (±2.5)
+              </button>
+            </div>
+            <p className="text-xs text-muted h-4">
+              {trialMode === 'sdclean'
+                ? trialExcludedCount > 0
+                  ? `${trialExcludedCount} trial${trialExcludedCount > 1 ? 's' : ''} excluded (${trialCleaned.length} of ${rawRows.length} kept)`
+                  : 'No trials excluded'
+                : `${rawRows.length} trials`}
+            </p>
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button onClick={() => setExcludeEnabled(false)} className={`px-5 py-2 text-sm font-medium transition-colors ${!excludeEnabled ? 'bg-emerald-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                All Participants
+              </button>
+              <button onClick={() => setExcludeEnabled(true)} className={`px-5 py-2 text-sm font-medium transition-colors ${excludeEnabled ? 'bg-emerald-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                Exclude Outliers (±2.5 SD)
+              </button>
+            </div>
+            <p className="text-xs text-muted h-4">
+              {excludeEnabled
+                ? excludedSessions.size > 0
+                  ? `${excludedSessions.size} participant${excludedSessions.size > 1 ? 's' : ''} excluded`
+                  : 'No participants excluded'
+                : `${nParticipants} participants`}
+            </p>
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-center text-gray-400 py-20">Loading…</p>
+        ) : activeRows.length === 0 ? (
+          <p className="text-center text-gray-500 py-20">No data yet</p>
+        ) : (
+          <div className="flex flex-col gap-6">
+
+            {/* Chart 1: Stay probability — the classic Two-Step plot */}
+            <ChartCard title="Stay Probability by Reward × Transition">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={stayData} barCategoryGap="25%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="#9ca3af" domain={[0, 100]}
+                      label={{ value: 'Stay Probability (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
+                    <Legend verticalAlign="top" />
+                    {revealed && (
+                      <Bar dataKey="value" fill="#34d399" name="Stay %" radius={[4, 4, 0, 0]}>
+                        <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        <Cell fill="#34d399" />
+                        <Cell fill="#34d399" />
+                        <Cell fill="#f97316" />
+                        <Cell fill="#f97316" />
+                      </Bar>
+                    )}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            {/* Chart 2: RL model indices — bar chart */}
+            <ChartCard title="Mean Model-Based & Model-Free Indices">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={rlBarData} barCategoryGap="40%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="#9ca3af"
+                      label={{ value: 'Index (β)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
+                    <Legend verticalAlign="top" />
+                    {revealed && (
+                      <Bar dataKey="value" name="Index" fill="#34d399" radius={[4, 4, 0, 0]}>
+                        <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        <Cell fill="#8b5cf6" />
+                        <Cell fill="#f97316" />
+                      </Bar>
+                    )}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            {/* Chart 3: RT by MB vs MF index scatter */}
+            <ChartCard title="Individual RT vs. Model-Based Index">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <ScatterChart margin={{ bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
+                      label={{ value: 'Model-Based Index (β)', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                    <YAxis type="number" dataKey="meanRt" stroke="#9ca3af" name="Mean RT"
+                      label={{ value: 'Mean Stage 1 RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as ParticipantRL;
+                        return (
+                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                            <p className="text-white font-semibold">{d.name}</p>
+                            <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
+                            <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
+                            <p className="text-gray-300">RT: {Math.round(d.meanRt)} ms</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    {revealed && (
+                      <Scatter data={rlData} fill="#8b5cf6" name="Participants">
+                        {rlData.map((_, i) => <Cell key={i} fill="#8b5cf6" />)}
+                      </Scatter>
+                    )}
+                  </ScatterChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            {/* Chart 4: MB vs MF scatter */}
+            <ChartCard title="Individual Model-Based vs. Model-Free Indices">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <ScatterChart margin={{ bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis type="number" dataKey="mfIndex" stroke="#9ca3af" name="MF Index"
+                      label={{ value: 'Model-Free Index (β)', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                    <YAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
+                      label={{ value: 'Model-Based Index (β)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as ParticipantRL;
+                        return (
+                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                            <p className="text-white font-semibold">{d.name}</p>
+                            <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
+                            <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    {revealed && (
+                      <Scatter data={rlData} fill="#34d399" name="Participants">
+                        {rlData.map((_, i) => <Cell key={i} fill="#34d399" />)}
+                      </Scatter>
+                    )}
+                  </ScatterChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
