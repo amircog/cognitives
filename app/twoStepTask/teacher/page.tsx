@@ -28,6 +28,72 @@ function sem(vals: number[]): number {
   return Math.sqrt(v / vals.length);
 }
 
+// ── Correlation helpers ──────────────────────────────────────────────────────
+
+function lgamma(x: number): number {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+    -1.231739572450155, 0.001208650973866179, -0.000005395239384953];
+  let y = x, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (const coef of c) ser += coef / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+
+function betacf(a: number, b: number, x: number): number {
+  const qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 200; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 3e-12) break;
+  }
+  return h;
+}
+
+function ibeta(a: number, b: number, x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+  if (x < (a + 1) / (a + b + 2)) return bt * betacf(a, b, x) / a;
+  return 1 - bt * betacf(b, a, 1 - x) / b;
+}
+
+function pearsonCorr(xs: number[], ys: number[]): { r: number; df: number; p: number } | null {
+  const n = xs.length;
+  if (n < 3) return null;
+  const mx = mean(xs), my = mean(ys);
+  let sxy = 0, sx2 = 0, sy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    sxy += dx * dy; sx2 += dx * dx; sy2 += dy * dy;
+  }
+  if (sx2 === 0 || sy2 === 0) return null;
+  const r = sxy / Math.sqrt(sx2 * sy2);
+  const df = n - 2;
+  if (Math.abs(r) >= 0.9999) return { r, df, p: 0 };
+  const t2 = r * r * df / (1 - r * r);
+  const p = ibeta(df / 2, 0.5, df / (df + t2));
+  return { r, df, p };
+}
+
+function fmtCorr(c: { r: number; df: number; p: number } | null): string {
+  if (!c) return '';
+  const pStr = c.p < 0.001 ? 'p<.001' : `p=${c.p.toFixed(3)}`;
+  return ` — r=${c.r.toFixed(2)}, df=${c.df}, ${pStr}`;
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Row = {
@@ -355,6 +421,26 @@ export default function TwoStepTeacher() {
     }));
   }, [rlData]);
 
+  // ── Diagonal line range for chart (c) ───────────────────────────────────
+  const mbMfDiag = useMemo(() => {
+    if (rlData.length === 0) return [{ x: -1, y: -1 }, { x: 1, y: 1 }];
+    const all = [...rlData.map(d => d.mbIndex), ...rlData.map(d => d.mfIndex)];
+    const lo = Math.min(...all), hi = Math.max(...all);
+    const pad = (hi - lo) * 0.15 || 0.1;
+    return [{ mfIndex: lo - pad, mbIndex: lo - pad }, { mfIndex: hi + pad, mbIndex: hi + pad }];
+  }, [rlData]);
+
+  // ── Correlations for charts (f) and (g) ────────────────────────────────
+  const corrMB = useMemo(() => {
+    if (rlData.length < 3) return null;
+    return pearsonCorr(rlData.map(d => d.mbIndex), rlData.map(d => d.meanRt));
+  }, [rlData]);
+
+  const corrMF = useMemo(() => {
+    if (rlData.length < 3) return null;
+    return pearsonCorr(rlData.map(d => d.mfIndex), rlData.map(d => d.meanRt));
+  }, [rlData]);
+
   const downloadCsv = useCallback(async () => {
     if (activeRows.length === 0) return;
     const headers = Object.keys(activeRows[0]).join(',');
@@ -533,6 +619,12 @@ export default function TwoStepTeacher() {
                         );
                       }}
                     />
+                    <Scatter
+                      data={mbMfDiag}
+                      line={{ stroke: '#6b7280', strokeWidth: 1.5, strokeDasharray: '6 4' }}
+                      shape={(() => <></>) as unknown as undefined}
+                      legendType="none"
+                    />
                     {revealed && (
                       <Scatter data={rlData} fill="#34d399" name="Participants">
                         {rlData.map((_, i) => <Cell key={i} fill="#34d399" />)}
@@ -619,7 +711,7 @@ export default function TwoStepTeacher() {
 
             {/* Charts (e) and (f) side by side: RT vs MB and RT vs MF */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ChartCard title="(f) RT vs. Model-Based Index">
+              <ChartCard title={`(f) RT vs. Model-Based Index${fmtCorr(corrMB)}`}>
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={300}>
                     <ScatterChart margin={{ bottom: 20 }}>
@@ -651,7 +743,7 @@ export default function TwoStepTeacher() {
                 )}
               </ChartCard>
 
-              <ChartCard title="(g) RT vs. Model-Free Index">
+              <ChartCard title={`(g) RT vs. Model-Free Index${fmtCorr(corrMF)}`}>
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={300}>
                     <ScatterChart margin={{ bottom: 20 }}>
