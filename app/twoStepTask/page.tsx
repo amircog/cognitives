@@ -14,14 +14,14 @@ export default function TwoStepLanding() {
   const t = isHe ? {
     title: 'משימת שני השלבים',
     inst: [
-      'בכל ניסיון תבחר/י בין שני סמלים בשלב הראשון.',
-      'הבחירה שלך תוביל אותך לאחד משני מצבים בשלב השני, שם תבחר/י שוב בין שני סמלים.',
-      'הבחירה בשלב השני עשויה לזכות אותך במטבע. הסיכוי לזכייה משתנה לאורך הניסוי.',
-      'נסה/י לצבור כמה שיותר מטבעות!',
+      'בכל ניסיון בחרו בין שני סמלים בשלב הראשון.',
+      'הבחירה שלכם תוביל לאחד משני מצבים בשלב השני, שם תבחרו שוב בין שני סמלים.',
+      'הבחירה בשלב השני עשויה לזכות אתכם במטבע. סיכויי הזכייה משתנים לאורך הניסוי.',
+      'נסו לצבור כמה שיותר מטבעות!',
     ],
-    nameLabel: 'שמך',
-    namePH: 'הזן את שמך',
-    start: 'התחל',
+    nameLabel: 'שם',
+    namePH: 'הכניסו את שמכם',
+    start: 'התחלה',
     toggle: 'English',
   } : {
     title: 'Two-Step Task',
@@ -39,7 +39,7 @@ export default function TwoStepLanding() {
 
   const handleStart = () => {
     if (!name.trim()) {
-      alert(isHe ? 'אנא הזן את שמך' : 'Please enter your name');
+      alert(isHe ? 'הכניסו את שמכם' : 'Please enter your name');
       return;
     }
     sessionStorage.setItem('tst_session_id', uuidv4());

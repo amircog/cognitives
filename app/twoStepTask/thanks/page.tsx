@@ -24,9 +24,9 @@ export default function TwoStepThanks() {
 
   const isHe = language === 'he';
   const t = isHe ? {
-    thanks: '!תודה רבה',
-    coins: 'מטבעות שנצברו',
-    total: 'סה"כ ניסיונות',
+    thanks: 'תודה רבה!',
+    coins: 'מטבעות שנאספו',
+    total: 'מספר ניסיונות',
     missRate: 'אחוז החמצות',
   } : {
     thanks: 'Thank You!',

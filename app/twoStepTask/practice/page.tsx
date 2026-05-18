@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   STAGE1_STIMULI, STAGE2A_STIMULI, STAGE2B_STIMULI,
-  STATE_COLORS,
+  STATE_COLORS, STAGE1_COLOR,
   STAGE1_CHOICE_MS, TRANSITION_MS, STAGE2_CHOICE_MS, REWARD_MS, ISI_MS,
   PRACTICE_TRIALS,
   generateTrials, getTransition, getReward,
@@ -20,13 +20,15 @@ type Phase =
   | 'tutorial-reward'
   | 'tutorial-strategy'
   | 'stage1'
-  | 'stage1-highlight'
   | 'transition'
   | 'stage2'
   | 'stage2-highlight'
   | 'reward'
   | 'isi'
   | 'feedback';
+
+const STIM_SIZE = 'w-24 h-24';
+const STIM_TEXT = 'text-5xl';
 
 export default function TwoStepPractice() {
   const router = useRouter();
@@ -36,7 +38,6 @@ export default function TwoStepPractice() {
   const [idx, setIdx] = useState(0);
   const [coins, setCoins] = useState(0);
 
-  // Trial state
   const [stage1Choice, setStage1Choice] = useState<'left' | 'right' | null>(null);
   const [stage2State, setStage2State] = useState<'A' | 'B' | null>(null);
   const [transitionType, setTransitionType] = useState<'common' | 'rare' | null>(null);
@@ -59,7 +60,6 @@ export default function TwoStepPractice() {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
   }, []);
 
-  // Timed phases
   useEffect(() => {
     if (!trial) return;
     clearTimer();
@@ -69,14 +69,6 @@ export default function TwoStepPractice() {
         setMissed('stage1');
         setPhase('feedback');
       }, STAGE1_CHOICE_MS);
-    } else if (phase === 'stage1-highlight') {
-      timerRef.current = setTimeout(() => {
-        if (!stage1Choice) return;
-        const trans = getTransition(stage1Choice);
-        setStage2State(trans.state);
-        setTransitionType(trans.type);
-        setPhase('transition');
-      }, 500);
     } else if (phase === 'transition') {
       timerRef.current = setTimeout(() => setPhase('stage2'), TRANSITION_MS);
     } else if (phase === 'stage2') {
@@ -106,7 +98,10 @@ export default function TwoStepPractice() {
     if (phase !== 'stage1') return;
     clearTimer();
     setStage1Choice(choice);
-    setPhase('stage1-highlight');
+    const trans = getTransition(choice);
+    setStage2State(trans.state);
+    setTransitionType(trans.type);
+    setPhase('transition');
   };
 
   const handleStage2 = (choice: 'left' | 'right') => {
@@ -131,30 +126,30 @@ export default function TwoStepPractice() {
     setPhase('isi');
   };
 
-  // ── Tutorial text ─────────────────────────────────────────────────
+  // ── Tutorial text (natural Hebrew) ────────────────────────────────
   const tutorialContent: Record<string, { he: string; en: string }> = {
     'tutorial-welcome': {
-      he: 'ברוכים הבאים! במשימה זו תלמד/י לבחור בין סמלים כדי לצבור מטבעות. נעבור יחד על המבנה של הניסוי.',
-      en: 'Welcome! In this task you will learn to choose between symbols to collect coins. Let\'s walk through the structure together.',
+      he: 'ברוכים הבאים! במשימה הזו תצטרכו לבחור בין סמלים שונים כדי לאסוף כמה שיותר מטבעות. בואו נכיר את מבנה המשימה.',
+      en: 'Welcome! In this task you will choose between symbols to collect coins. Let\'s walk through the structure together.',
     },
     'tutorial-stage1': {
-      he: `בשלב 1, תראה/י שני סמלים טיבטיים (${STAGE1_STIMULI[0]} ו-${STAGE1_STIMULI[1]}). הקש/י על אחד מהם לבחירתך. יש לך 1.5 שניות לבחור.`,
-      en: `In Stage 1, you'll see two Tibetan symbols (${STAGE1_STIMULI[0]} and ${STAGE1_STIMULI[1]}). Tap one to make your choice. You have 1.5 seconds to choose.`,
+      he: `בשלב הראשון מופיעים שני סמלים (${STAGE1_STIMULI[0]} ו-${STAGE1_STIMULI[1]}). הקישו על אחד מהם. יש לכם 2 שניות לבחור.`,
+      en: `In Stage 1, you'll see two symbols (${STAGE1_STIMULI[0]} and ${STAGE1_STIMULI[1]}). Tap one to choose. You have 2 seconds.`,
     },
     'tutorial-transition': {
-      he: `הבחירה שלך בשלב 1 תוביל אותך למצב סגול או מצב טורקיז בשלב 2. כל סמל מוביל בדרך כלל (70%) למצב מסוים, אך לפעמים (30%) למצב השני.`,
-      en: `Your Stage 1 choice will lead to a purple or cyan state in Stage 2. Each symbol usually (70%) leads to a specific state, but sometimes (30%) to the other.`,
+      he: 'הבחירה שלכם בשלב הראשון קובעת לאיזה מצב תגיעו בשלב השני — ורוד או כחול. כל סמל מוביל בדרך כלל (70%) למצב מסוים, אבל לפעמים (30%) למצב השני.',
+      en: 'Your Stage 1 choice determines which state you reach in Stage 2 — pink or blue. Each symbol usually (70%) leads to one state, but sometimes (30%) to the other.',
     },
     'tutorial-stage2': {
-      he: `בשלב 2, תראה/י שני סמלים חדשים על רקע צבעוני. הקש/י על אחד מהם. לכל סמל יש סיכוי שונה לזכייה.`,
-      en: `In Stage 2, you'll see two new symbols on a colored background. Tap one. Each symbol has a different chance of winning.`,
+      he: 'בשלב השני מופיעים שני סמלים חדשים על רקע צבעוני. הקישו על אחד מהם — לכל סמל סיכוי שונה לתת מטבע.',
+      en: 'In Stage 2, you\'ll see two new symbols on a colored background. Tap one — each symbol has a different chance of giving a coin.',
     },
     'tutorial-reward': {
-      he: 'אם זכית — יופיע מטבע! הסיכויים לזכייה משתנים לאט לאורך הניסוי, כך שכדאי לעקוב אחר מה שעובד.',
-      en: 'If you win — a coin appears! The winning chances slowly change over time, so keep track of what works.',
+      he: 'אם זכיתם — מופיע מטבע! שימו לב: הסיכויים לזכייה משתנים לאט במהלך המשימה, אז כדאי לשים לב למה שעובד.',
+      en: 'If you win — a coin appears! Note: the winning chances slowly change during the task, so pay attention to what works.',
     },
     'tutorial-strategy': {
-      he: `עכשיו נתרגל ${PRACTICE_TRIALS} ניסיונות. נסה/י לחשוב הן על מה שקורה בשלב 2, והן על המעברים בין השלבים. בהצלחה!`,
+      he: `עכשיו נתרגל ${PRACTICE_TRIALS} ניסיונות. נסו לחשוב גם על מה שקורה בשלב השני, וגם על המעברים בין השלבים. בהצלחה!`,
       en: `Now let's practice ${PRACTICE_TRIALS} trials. Try to think about both what happens in Stage 2 and the transitions between stages. Good luck!`,
     },
   };
@@ -193,10 +188,10 @@ export default function TwoStepPractice() {
           {phase === 'tutorial-transition' && (
             <div className="flex gap-6 mb-2">
               <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-sm font-bold text-white" style={{ background: STATE_COLORS.A.bg }}>
-                {isHe ? 'סגול' : 'Purple'}
+                {isHe ? 'ורוד' : 'Pink'}
               </div>
               <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-sm font-bold text-white" style={{ background: STATE_COLORS.B.bg }}>
-                {isHe ? 'טורקיז' : 'Cyan'}
+                {isHe ? 'כחול' : 'Blue'}
               </div>
             </div>
           )}
@@ -247,6 +242,8 @@ export default function TwoStepPractice() {
 
   const progress = (idx / PRACTICE_TRIALS) * 100;
   const stateColor = stage2State ? STATE_COLORS[stage2State] : null;
+  const s1Sym = stage1Choice ? STAGE1_STIMULI[stage1Choice === 'left' ? 0 : 1] : null;
+  const s2Stimuli = stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI;
 
   return (
     <div className="bg-[#0f172a] flex flex-col select-none" style={{ height: '100dvh' }}>
@@ -270,24 +267,18 @@ export default function TwoStepPractice() {
           <div className="text-white text-6xl font-thin">+</div>
         )}
 
-        {/* Stage 1 */}
-        {(phase === 'stage1' || phase === 'stage1-highlight') && (
+        {/* Stage 1: two clickable options */}
+        {phase === 'stage1' && (
           <div className="flex flex-col items-center gap-6">
-            <p className="text-gray-400 text-sm">{isHe ? 'שלב 1 — בחר/י סמל' : 'Stage 1 — Choose a symbol'}</p>
+            <p className="text-gray-400 text-sm">{isHe ? 'שלב ראשון — בחרו סמל' : 'Stage 1 — Choose a symbol'}</p>
             <div className="flex gap-6">
               {(['left', 'right'] as const).map(side => {
                 const sym = STAGE1_STIMULI[side === 'left' ? 0 : 1];
-                const selected = stage1Choice === side;
                 return (
                   <button
                     key={side}
                     onPointerDown={e => { e.preventDefault(); handleStage1(side); }}
-                    disabled={phase !== 'stage1'}
-                    className={`w-24 h-24 rounded-2xl text-5xl flex items-center justify-center transition-all touch-manipulation shadow-lg
-                      ${selected
-                        ? 'bg-emerald-500/30 border-2 border-emerald-400 scale-110'
-                        : 'bg-gray-800 border-2 border-gray-600 hover:border-gray-400 active:scale-95'
-                      }`}
+                    className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg bg-gray-800 border-2 border-gray-600 hover:border-gray-400 active:scale-95`}
                   >
                     {sym}
                   </button>
@@ -297,10 +288,10 @@ export default function TwoStepPractice() {
           </div>
         )}
 
-        {/* Transition */}
-        {phase === 'transition' && stateColor && (
+        {/* Transition: selected Stage 1 item above Stage 2 options (non-clickable) */}
+        {phase === 'transition' && stateColor && s1Sym && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="flex flex-col items-center gap-4"
           >
             <p className="text-gray-400 text-sm">
@@ -308,9 +299,21 @@ export default function TwoStepPractice() {
                 ? (isHe ? 'מעבר רגיל' : 'Common transition')
                 : (isHe ? 'מעבר נדיר!' : 'Rare transition!')}
             </p>
-            <div className="rounded-2xl p-8 flex gap-6" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
-              {(stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI).map((sym, i) => (
-                <div key={i} className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl text-white" style={{ background: stateColor.bg }}>
+            {/* Selected Stage 1 item */}
+            <div
+              className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center border-2`}
+              style={{ background: STAGE1_COLOR.bg, borderColor: STAGE1_COLOR.border }}
+            >
+              {s1Sym}
+            </div>
+            {/* Stage 2 options (not clickable) */}
+            <div className="rounded-2xl p-6 flex gap-6" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
+              {s2Stimuli.map((sym, i) => (
+                <div
+                  key={i}
+                  className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center text-white`}
+                  style={{ background: stateColor.bg }}
+                >
                   {sym}
                 </div>
               ))}
@@ -318,25 +321,21 @@ export default function TwoStepPractice() {
           </motion.div>
         )}
 
-        {/* Stage 2 */}
+        {/* Stage 2: clickable (no Stage 1 item) */}
         {(phase === 'stage2' || phase === 'stage2-highlight') && stateColor && (
           <div className="flex flex-col items-center gap-6">
-            <p className="text-gray-400 text-sm">{isHe ? 'שלב 2 — בחר/י סמל' : 'Stage 2 — Choose a symbol'}</p>
-            <div className="rounded-2xl p-8 flex gap-6" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
+            <p className="text-gray-400 text-sm">{isHe ? 'שלב שני — בחרו סמל' : 'Stage 2 — Choose a symbol'}</p>
+            <div className="rounded-2xl p-6 flex gap-6" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
               {(['left', 'right'] as const).map(side => {
-                const stimuli = stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI;
-                const sym = stimuli[side === 'left' ? 0 : 1];
+                const sym = s2Stimuli[side === 'left' ? 0 : 1];
                 const selected = stage2Choice === side;
                 return (
                   <button
                     key={side}
                     onPointerDown={e => { e.preventDefault(); handleStage2(side); }}
                     disabled={phase !== 'stage2'}
-                    className={`w-24 h-24 rounded-xl text-5xl flex items-center justify-center transition-all touch-manipulation shadow-lg
-                      ${selected
-                        ? 'scale-110 ring-4 ring-emerald-400'
-                        : 'hover:scale-105 active:scale-95'
-                      }`}
+                    className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg text-white
+                      ${selected ? 'scale-110 ring-4 ring-emerald-400' : 'hover:scale-105 active:scale-95'}`}
                     style={{ background: stateColor.bg }}
                   >
                     {sym}
@@ -357,7 +356,7 @@ export default function TwoStepPractice() {
             {rewarded ? (
               <>
                 <div className="text-7xl">🪙</div>
-                <p className="text-yellow-400 text-xl font-bold">{isHe ? '!זכית' : 'You win!'}</p>
+                <p className="text-yellow-400 text-xl font-bold">{isHe ? 'זכיתם!' : 'You win!'}</p>
               </>
             ) : (
               <>
@@ -377,15 +376,15 @@ export default function TwoStepPractice() {
               className="flex flex-col items-center gap-4"
             >
               {missed ? (
-                <p className="text-red-400 text-xl font-bold">{isHe ? 'איטי מדי!' : 'Too slow!'}</p>
+                <p className="text-red-400 text-xl font-bold">{isHe ? 'לא הספקתם!' : 'Too slow!'}</p>
               ) : rewarded ? (
-                <p className="text-yellow-400 text-lg">{isHe ? 'כל הכבוד! קיבלת מטבע' : 'Great! You earned a coin'}</p>
+                <p className="text-yellow-400 text-lg">{isHe ? 'יופי! קיבלתם מטבע' : 'Great! You earned a coin'}</p>
               ) : (
-                <p className="text-gray-400 text-lg">{isHe ? 'אין מטבע הפעם. נסה/י שוב' : 'No coin this time. Try again'}</p>
+                <p className="text-gray-400 text-lg">{isHe ? 'בלי מטבע הפעם' : 'No coin this time'}</p>
               )}
               {transitionType && (
                 <p className="text-gray-500 text-sm">
-                  {isHe ? `מעבר: ${transitionType === 'common' ? 'רגיל' : 'נדיר'}` : `Transition: ${transitionType}`}
+                  {isHe ? `סוג מעבר: ${transitionType === 'common' ? 'רגיל' : 'נדיר'}` : `Transition: ${transitionType}`}
                 </p>
               )}
               <button

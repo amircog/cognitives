@@ -1,33 +1,34 @@
 import { TwoStepTrial } from '@/types/two-step-task';
 
-// ── Tibetan characters ──────────────────────────────────────────────────────
-// 6 distinct characters: 2 for Stage 1, 2 for each Stage 2 state
-export const STAGE1_STIMULI = ['༄', '༅'];
-export const STAGE2A_STIMULI = ['ༀ', '༁'];
-export const STAGE2B_STIMULI = ['༂', '༃'];
+// ── Tibetan characters (matching Daw et al. 2011 original design) ───────────
+// 6 distinct Tibetan consonants: 2 for Stage 1 (green), 2 for State A (pink), 2 for State B (blue)
+export const STAGE1_STIMULI = ['ཀ', 'ག'];
+export const STAGE2A_STIMULI = ['ན', 'ཤ'];
+export const STAGE2B_STIMULI = ['བ', 'ཇ'];
 
 // ── Transition structure ────────────────────────────────────────────────────
 // Stage 1 left (STAGE1_STIMULI[0]) -> commonly (70%) reaches State A, rarely (30%) State B
 // Stage 1 right (STAGE1_STIMULI[1]) -> commonly (70%) reaches State B, rarely (30%) State A
 export const COMMON_PROB = 0.7;
 
-// ── State colors ────────────────────────────────────────────────────────────
+// ── State colors (matching Daw et al. 2011: pink for A, blue for B) ─────────
 export const STATE_COLORS = {
-  A: { bg: '#7c3aed', bgLight: 'rgba(124, 58, 237, 0.15)', border: '#8b5cf6', name: 'purple' },
-  B: { bg: '#0891b2', bgLight: 'rgba(8, 145, 178, 0.15)', border: '#06b6d4', name: 'cyan' },
+  A: { bg: '#db2777', bgLight: 'rgba(219, 39, 119, 0.15)', border: '#ec4899', name: 'pink' },
+  B: { bg: '#2563eb', bgLight: 'rgba(37, 99, 235, 0.15)', border: '#3b82f6', name: 'blue' },
 };
 
+// ── Stage 1 background color (green, matching original) ────────────────────
+export const STAGE1_COLOR = { bg: '#16a34a', bgLight: 'rgba(22, 163, 74, 0.15)', border: '#22c55e' };
+
 // ── Timing (ms) ─────────────────────────────────────────────────────────────
-export const STAGE1_CHOICE_MS = 1500;
-export const STAGE1_HIGHLIGHT_MS = 500;
-export const TRANSITION_MS = 2000;
-export const STAGE2_CHOICE_MS = 1500;
-export const STAGE2_HIGHLIGHT_MS = 500;
-export const REWARD_MS = 2000;
-export const ISI_MS = 1500;
+export const STAGE1_CHOICE_MS = 2000;
+export const TRANSITION_MS = 1500;
+export const STAGE2_CHOICE_MS = 2000;
+export const REWARD_MS = 1500;
+export const ISI_MS = 1000;
 
 // ── Trial counts ────────────────────────────────────────────────────────────
-export const PRACTICE_TRIALS = 25;
+export const PRACTICE_TRIALS = 10;
 export const MAIN_TRIALS = 201;
 
 // ── Reward probability drift ────────────────────────────────────────────────

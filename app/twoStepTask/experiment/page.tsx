@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   STAGE1_STIMULI, STAGE2A_STIMULI, STAGE2B_STIMULI,
-  STATE_COLORS,
+  STATE_COLORS, STAGE1_COLOR,
   STAGE1_CHOICE_MS, TRANSITION_MS, STAGE2_CHOICE_MS, REWARD_MS, ISI_MS,
   MAIN_TRIALS,
   generateTrials, getTransition, getReward, getStimulusForChoice,
@@ -13,7 +13,12 @@ import {
 import { TwoStepTrial, TwoStepTrialResult } from '@/types/two-step-task';
 import { getSupabase } from '@/lib/supabase';
 
-type Phase = 'stage1' | 'stage1-highlight' | 'transition' | 'stage2' | 'stage2-highlight' | 'reward' | 'isi';
+// transition: selected Stage 1 shown above Stage 2 options (not clickable)
+// stage2: only Stage 2 options shown (clickable)
+type Phase = 'stage1' | 'transition' | 'stage2' | 'stage2-highlight' | 'reward' | 'isi';
+
+const STIM_SIZE = 'w-28 h-28';
+const STIM_TEXT = 'text-5xl';
 
 export default function TwoStepExperiment() {
   const router = useRouter();
@@ -29,8 +34,6 @@ export default function TwoStepExperiment() {
   const [transitionType, setTransitionType] = useState<'common' | 'rare' | null>(null);
   const [stage2Choice, setStage2Choice] = useState<'left' | 'right' | null>(null);
   const [rewarded, setRewarded] = useState(false);
-  const [missedStage1, setMissedStage1] = useState(false);
-  const [missedStage2, setMissedStage2] = useState(false);
 
   const stage1OnsetRef = useRef(0);
   const stage2OnsetRef = useRef(0);
@@ -114,8 +117,6 @@ export default function TwoStepExperiment() {
     setTransitionType(null);
     setStage2Choice(null);
     setRewarded(false);
-    setMissedStage1(false);
-    setMissedStage2(false);
     stage1RtRef.current = null;
     stage2RtRef.current = null;
     setPhase('isi');
@@ -129,26 +130,17 @@ export default function TwoStepExperiment() {
     if (phase === 'stage1') {
       stage1OnsetRef.current = performance.now();
       timerRef.current = setTimeout(() => {
-        setMissedStage1(true);
         recordAndAdvance(null, null, null, null, null, null, false, true, false, trial);
         startNextTrial();
       }, STAGE1_CHOICE_MS);
-    } else if (phase === 'stage1-highlight') {
-      timerRef.current = setTimeout(() => {
-        if (!stage1Choice) return;
-        const trans = getTransition(stage1Choice);
-        setStage2State(trans.state);
-        setTransitionType(trans.type);
-        setPhase('transition');
-      }, 500);
     } else if (phase === 'transition') {
+      // Selected Stage 1 item shown above Stage 2 options for TRANSITION_MS
       timerRef.current = setTimeout(() => {
         stage2OnsetRef.current = performance.now();
         setPhase('stage2');
       }, TRANSITION_MS);
     } else if (phase === 'stage2') {
       timerRef.current = setTimeout(() => {
-        setMissedStage2(true);
         recordAndAdvance(stage1Choice, stage1RtRef.current, stage2State, transitionType, null, null, false, false, true, trial);
         startNextTrial();
       }, STAGE2_CHOICE_MS);
@@ -164,10 +156,7 @@ export default function TwoStepExperiment() {
     } else if (phase === 'reward') {
       timerRef.current = setTimeout(() => startNextTrial(), REWARD_MS);
     } else if (phase === 'isi') {
-      timerRef.current = setTimeout(() => {
-        stage1OnsetRef.current = performance.now();
-        setPhase('stage1');
-      }, ISI_MS);
+      timerRef.current = setTimeout(() => setPhase('stage1'), ISI_MS);
     }
 
     return clearTimer;
@@ -178,7 +167,10 @@ export default function TwoStepExperiment() {
     clearTimer();
     stage1RtRef.current = Math.round(performance.now() - stage1OnsetRef.current);
     setStage1Choice(choice);
-    setPhase('stage1-highlight');
+    const trans = getTransition(choice);
+    setStage2State(trans.state);
+    setTransitionType(trans.type);
+    setPhase('transition');
   }, [phase, clearTimer]);
 
   const handleStage2 = useCallback((choice: 'left' | 'right') => {
@@ -199,6 +191,8 @@ export default function TwoStepExperiment() {
 
   const progress = (idx / MAIN_TRIALS) * 100;
   const stateColor = stage2State ? STATE_COLORS[stage2State] : null;
+  const s1Sym = stage1Choice ? STAGE1_STIMULI[stage1Choice === 'left' ? 0 : 1] : null;
+  const s2Stimuli = stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI;
 
   return (
     <div className="bg-[#0f172a] flex flex-col select-none" style={{ height: '100dvh' }}>
@@ -221,22 +215,16 @@ export default function TwoStepExperiment() {
           <div className="text-white text-6xl font-thin">+</div>
         )}
 
-        {/* Stage 1 */}
-        {(phase === 'stage1' || phase === 'stage1-highlight') && (
+        {/* Stage 1: two clickable options */}
+        {phase === 'stage1' && (
           <div className="flex gap-8">
             {(['left', 'right'] as const).map(side => {
               const sym = STAGE1_STIMULI[side === 'left' ? 0 : 1];
-              const selected = stage1Choice === side;
               return (
                 <button
                   key={side}
                   onPointerDown={e => { e.preventDefault(); handleStage1(side); }}
-                  disabled={phase !== 'stage1'}
-                  className={`w-28 h-28 rounded-2xl text-5xl flex items-center justify-center transition-all touch-manipulation shadow-lg
-                    ${selected
-                      ? 'bg-emerald-500/30 border-2 border-emerald-400 scale-110'
-                      : 'bg-gray-800 border-2 border-gray-600 active:scale-95'
-                    }`}
+                  className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg bg-gray-800 border-2 border-gray-600 active:scale-95`}
                 >
                   {sym}
                 </button>
@@ -245,38 +233,47 @@ export default function TwoStepExperiment() {
           </div>
         )}
 
-        {/* Transition */}
-        {phase === 'transition' && stateColor && (
+        {/* Transition: selected Stage 1 item above Stage 2 options (all non-clickable) */}
+        {phase === 'transition' && stateColor && s1Sym && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl p-8 flex gap-8"
-            style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="flex flex-col items-center gap-6"
           >
-            {(stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI).map((sym, i) => (
-              <div key={i} className="w-24 h-24 rounded-xl flex items-center justify-center text-5xl text-white" style={{ background: stateColor.bg }}>
-                {sym}
-              </div>
-            ))}
+            {/* Selected Stage 1 item */}
+            <div
+              className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center border-2`}
+              style={{ background: STAGE1_COLOR.bg, borderColor: STAGE1_COLOR.border }}
+            >
+              {s1Sym}
+            </div>
+            {/* Stage 2 options (not clickable yet) */}
+            <div className="rounded-2xl p-6 flex gap-8" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
+              {s2Stimuli.map((sym, i) => (
+                <div
+                  key={i}
+                  className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center text-white`}
+                  style={{ background: stateColor.bg }}
+                >
+                  {sym}
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
 
-        {/* Stage 2 */}
+        {/* Stage 2: clickable options (no Stage 1 item shown) */}
         {(phase === 'stage2' || phase === 'stage2-highlight') && stateColor && (
-          <div className="rounded-2xl p-8 flex gap-8" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
+          <div className="rounded-2xl p-6 flex gap-8" style={{ background: stateColor.bgLight, border: `2px solid ${stateColor.border}` }}>
             {(['left', 'right'] as const).map(side => {
-              const stimuli = stage2State === 'A' ? STAGE2A_STIMULI : STAGE2B_STIMULI;
-              const sym = stimuli[side === 'left' ? 0 : 1];
+              const sym = s2Stimuli[side === 'left' ? 0 : 1];
               const selected = stage2Choice === side;
               return (
                 <button
                   key={side}
                   onPointerDown={e => { e.preventDefault(); handleStage2(side); }}
                   disabled={phase !== 'stage2'}
-                  className={`w-28 h-28 rounded-xl text-5xl flex items-center justify-center transition-all touch-manipulation shadow-lg
-                    ${selected
-                      ? 'scale-110 ring-4 ring-emerald-400'
-                      : 'active:scale-95'
-                    }`}
+                  className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg text-white
+                    ${selected ? 'scale-110 ring-4 ring-emerald-400' : 'active:scale-95'}`}
                   style={{ background: stateColor.bg }}
                 >
                   {sym}
