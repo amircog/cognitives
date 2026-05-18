@@ -2,7 +2,7 @@ import { TwoStepTrial } from '@/types/two-step-task';
 
 // ── Tibetan characters (matching Daw et al. 2011 original design) ───────────
 // 6 distinct Tibetan consonants: 2 for Stage 1 (green), 2 for State A (pink), 2 for State B (blue)
-export const STAGE1_STIMULI = ['ཀ', 'ག'];
+export const STAGE1_STIMULI = ['ཀ', 'མ'];
 export const STAGE2A_STIMULI = ['ན', 'ཤ'];
 export const STAGE2B_STIMULI = ['བ', 'ཇ'];
 

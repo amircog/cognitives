@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, FormEvent, useCallback } from 'rea
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ErrorBar, ScatterChart, Scatter, Cell, Legend,
+  LineChart, Line,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -98,6 +99,8 @@ interface ParticipantRL {
   mbIndex: number;
   mfIndex: number;
   meanRt: number;
+  coins: number;
+  totalTrials: number;
 }
 
 function computeRLIndices(rows: Row[]): ParticipantRL[] {
@@ -113,43 +116,39 @@ function computeRLIndices(rows: Row[]): ParticipantRL[] {
     const sorted = trials.sort((a, b) => a.trial_index - b.trial_index);
     const name = sorted[0]?.participant_name ?? sessionId.slice(0, 8);
 
-    const stays: { reward: number; transition: number; stay: number }[] = [];
+    let rcStay = 0, rcN = 0, rrStay = 0, rrN = 0;
+    let ucStay = 0, ucN = 0, urStay = 0, urN = 0;
+
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
       const curr = sorted[i];
-      stays.push({
-        reward: prev.rewarded ? 1 : -1,
-        transition: prev.transition_type === 'common' ? 1 : -1,
-        stay: curr.stage1_choice === prev.stage1_choice ? 1 : 0,
-      });
+      const stayed = curr.stage1_choice === prev.stage1_choice ? 1 : 0;
+      const wasRewarded = prev.rewarded;
+      const wasCommon = prev.transition_type === 'common';
+
+      if (wasRewarded && wasCommon) { rcStay += stayed; rcN++; }
+      else if (wasRewarded && !wasCommon) { rrStay += stayed; rrN++; }
+      else if (!wasRewarded && wasCommon) { ucStay += stayed; ucN++; }
+      else { urStay += stayed; urN++; }
     }
 
-    if (stays.length < 10) continue;
+    if (rcN + rrN + ucN + urN < 10) continue;
 
-    const n = stays.length;
-    const stayMean = mean(stays.map(s => s.stay));
+    const pRC = rcN > 0 ? rcStay / rcN : 0.5;
+    const pRR = rrN > 0 ? rrStay / rrN : 0.5;
+    const pUC = ucN > 0 ? ucStay / ucN : 0.5;
+    const pUR = urN > 0 ? urStay / urN : 0.5;
 
-    const rewVals = stays.map(s => s.reward);
-    const transVals = stays.map(s => s.transition);
-    const interVals = stays.map((s, i) => rewVals[i] * transVals[i]);
-    const stayVals = stays.map(s => s.stay - stayMean);
-
-    const rewMean = mean(rewVals);
-    const transMean = mean(transVals);
-    const interMean = mean(interVals);
-
-    const rewCentered = rewVals.map(v => v - rewMean);
-    const interCentered = interVals.map(v => v - interMean);
-
-    const mfIndex = mean(rewCentered.map((r, i) => r * stayVals[i])) /
-      (mean(rewCentered.map(r => r * r)) || 1);
-    const mbIndex = mean(interCentered.map((r, i) => r * stayVals[i])) /
-      (mean(interCentered.map(r => r * r)) || 1);
+    // MF index: main effect of reward on stay = P(stay|rew) - P(stay|unrew)
+    const mfIndex = ((pRC + pRR) / 2) - ((pUC + pUR) / 2);
+    // MB index: reward × transition interaction
+    const mbIndex = (pRC - pRR) - (pUC - pUR);
 
     const rts = sorted.filter(r => r.stage1_rt_ms != null).map(r => r.stage1_rt_ms!);
     const meanRt = rts.length > 0 ? mean(rts) : 0;
+    const totalCoins = sorted.filter(r => r.rewarded).length;
 
-    results.push({ name, sessionId, mbIndex, mfIndex, meanRt });
+    results.push({ name, sessionId, mbIndex, mfIndex, meanRt, coins: totalCoins, totalTrials: sorted.length });
   }
 
   return results;
@@ -205,18 +204,21 @@ function excludeParticipants(rows: Row[]): { kept: Row[]; excludedIds: Set<strin
 
 // ── Components ───────────────────────────────────────────────────────────────
 
-function ChartCard({ title, children }: { title: string; children: (revealed: boolean) => React.ReactNode }) {
+function ChartCard({ title, children, headerExtra }: { title: string; children: (revealed: boolean) => React.ReactNode; headerExtra?: React.ReactNode }) {
   const [revealed, setRevealed] = useState(false);
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold text-gray-200">{title}</h3>
-        <button
-          onClick={() => setRevealed(r => !r)}
-          className="text-xs px-3 py-1 rounded-full border border-gray-600 text-gray-400 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
-        >
-          {revealed ? 'Hide' : 'Reveal'}
-        </button>
+        <div className="flex items-center gap-3">
+          {headerExtra}
+          <button
+            onClick={() => setRevealed(r => !r)}
+            className="text-xs px-3 py-1 rounded-full border border-gray-600 text-gray-400 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
+          >
+            {revealed ? 'Hide' : 'Reveal'}
+          </button>
+        </div>
       </div>
       {children(revealed)}
     </div>
@@ -242,6 +244,7 @@ export default function TwoStepTeacher() {
   const [loading, setLoading] = useState(false);
   const [trialMode, setTrialMode] = useState<'raw' | 'sdclean'>('raw');
   const [excludeEnabled, setExcludeEnabled] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<string>('');
 
   const trialCleaned = useMemo(
     () => trialMode === 'sdclean' ? sdCleanTrials(rawRows) : rawRows,
@@ -285,6 +288,23 @@ export default function TwoStepTeacher() {
     setLoading(false);
   }, []);
 
+  // ── Participant list for dropdown ───────────────────────────────────────────
+  const participantList = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of activeRows) {
+      if (!map.has(r.session_id)) {
+        map.set(r.session_id, r.participant_name ?? r.session_id.slice(0, 8));
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [activeRows]);
+
+  useEffect(() => {
+    if (participantList.length > 0 && !selectedParticipant) {
+      setSelectedParticipant(participantList[0].id);
+    }
+  }, [participantList, selectedParticipant]);
+
   // ── Chart 1: Stay probability bar plot ─────────────────────────────────────
   const stayData = useMemo(() => {
     if (activeRows.length === 0) return [];
@@ -297,7 +317,7 @@ export default function TwoStepTeacher() {
     ];
   }, [activeRows]);
 
-  // ── Chart 2–4: RL indices ──────────────────────────────────────────────────
+  // ── Chart 2: RL indices ───────────────────────────────────────────────────
   const rlData = useMemo(() => computeRLIndices(activeRows), [activeRows]);
 
   const rlBarData = useMemo(() => {
@@ -308,6 +328,28 @@ export default function TwoStepTeacher() {
       { name: 'Model-Based', value: Math.round(mean(mbVals) * 1000) / 1000, sem: Math.round(sem(mbVals) * 1000) / 1000 },
       { name: 'Model-Free', value: Math.round(mean(mfVals) * 1000) / 1000, sem: Math.round(sem(mfVals) * 1000) / 1000 },
     ];
+  }, [rlData]);
+
+  // ── Chart 3: Reward probability walk ──────────────────────────────────────
+  const rewardWalkData = useMemo(() => {
+    if (!selectedParticipant || activeRows.length === 0) return [];
+    return activeRows
+      .filter(r => r.session_id === selectedParticipant)
+      .sort((a, b) => a.trial_index - b.trial_index)
+      .map(r => ({
+        trial: r.trial_index + 1,
+        'State A Left': Math.round(r.reward_prob_s2a_left * 100),
+        'State A Right': Math.round(r.reward_prob_s2a_right * 100),
+        'State B Left': Math.round(r.reward_prob_s2b_left * 100),
+        'State B Right': Math.round(r.reward_prob_s2b_right * 100),
+      }));
+  }, [activeRows, selectedParticipant]);
+
+  // ── Chart 4: Coins per participant ────────────────────────────────────────
+  const coinsData = useMemo(() => {
+    return rlData
+      .map(p => ({ name: p.name, coins: p.coins, totalTrials: p.totalTrials }))
+      .sort((a, b) => b.coins - a.coins);
   }, [rlData]);
 
   const downloadCsv = useCallback(async () => {
@@ -413,7 +455,7 @@ export default function TwoStepTeacher() {
           <div className="flex flex-col gap-6">
 
             {/* Chart 1: Stay probability — the classic Two-Step plot */}
-            <ChartCard title="Stay Probability by Reward × Transition">
+            <ChartCard title="(a) Stay Probability by Reward × Transition">
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stayData} barCategoryGap="25%">
@@ -438,36 +480,113 @@ export default function TwoStepTeacher() {
             </ChartCard>
 
             {/* Chart 2: RL model indices — bar chart */}
-            <ChartCard title="Mean Model-Based & Model-Free Indices">
+            <ChartCard title="(b) Mean Model-Based & Model-Free Indices">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    MF = P(stay|rewarded) − P(stay|unrewarded) · MB = reward × transition interaction
+                  </p>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={rlBarData} barCategoryGap="40%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
+                      <YAxis stroke="#9ca3af"
+                        label={{ value: 'Index', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                      <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
+                      <Legend verticalAlign="top" />
+                      {revealed && (
+                        <Bar dataKey="value" name="Index" fill="#34d399" radius={[4, 4, 0, 0]}>
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                          <Cell fill="#8b5cf6" />
+                          <Cell fill="#f97316" />
+                        </Bar>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            {/* Chart 3: Reward probability walk for one participant */}
+            <ChartCard
+              title="(c) Reward Probability Walk"
+              headerExtra={
+                participantList.length > 0 ? (
+                  <select
+                    value={selectedParticipant}
+                    onChange={e => setSelectedParticipant(e.target.value)}
+                    className="text-xs bg-gray-800 border border-gray-600 text-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-400"
+                  >
+                    {participantList.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                ) : undefined
+              }
+            >
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={rlBarData} barCategoryGap="40%">
+                  <LineChart data={rewardWalkData} margin={{ bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="#9ca3af"
-                      label={{ value: 'Index (β)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <XAxis dataKey="trial" stroke="#9ca3af" tick={{ fontSize: 10 }}
+                      label={{ value: 'Trial', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                    <YAxis stroke="#9ca3af" domain={[20, 80]}
+                      label={{ value: 'Reward Prob (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                     <Legend verticalAlign="top" />
                     {revealed && (
-                      <Bar dataKey="value" name="Index" fill="#34d399" radius={[4, 4, 0, 0]}>
-                        <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
-                        <Cell fill="#8b5cf6" />
-                        <Cell fill="#f97316" />
-                      </Bar>
+                      <>
+                        <Line type="monotone" dataKey="State A Left" stroke="#ec4899" strokeWidth={1.5} dot={false} />
+                        <Line type="monotone" dataKey="State A Right" stroke="#f472b6" strokeWidth={1.5} dot={false} strokeDasharray="6 3" />
+                        <Line type="monotone" dataKey="State B Left" stroke="#3b82f6" strokeWidth={1.5} dot={false} />
+                        <Line type="monotone" dataKey="State B Right" stroke="#60a5fa" strokeWidth={1.5} dot={false} strokeDasharray="6 3" />
+                      </>
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            {/* Chart 4: Coins per participant */}
+            <ChartCard title="(d) Coins Collected per Participant">
+              {(revealed) => (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={coinsData} barCategoryGap="15%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
+                    <YAxis stroke="#9ca3af"
+                      label={{ value: 'Coins', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ background: '#1e293b', border: '1px solid #374151' }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as { name: string; coins: number; totalTrials: number };
+                        return (
+                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
+                            <p className="text-white font-semibold">{d.name}</p>
+                            <p className="text-yellow-400">Coins: {d.coins}</p>
+                            <p className="text-gray-300">Trials: {d.totalTrials}</p>
+                            <p className="text-gray-300">Rate: {d.totalTrials > 0 ? Math.round((d.coins / d.totalTrials) * 100) : 0}%</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    {revealed && (
+                      <Bar dataKey="coins" fill="#facc15" name="Coins" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </ChartCard>
 
-            {/* Chart 3: RT by MB vs MF index scatter */}
-            <ChartCard title="Individual RT vs. Model-Based Index">
+            {/* Chart 5: RT vs MB index scatter */}
+            <ChartCard title="(e) Individual RT vs. Model-Based Index">
               {(revealed) => (
                 <ResponsiveContainer width="100%" height={300}>
                   <ScatterChart margin={{ bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
-                      label={{ value: 'Model-Based Index (β)', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
+                      label={{ value: 'Model-Based Index', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
                     <YAxis type="number" dataKey="meanRt" stroke="#9ca3af" name="Mean RT"
                       label={{ value: 'Mean Stage 1 RT (ms)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
                     <Tooltip
@@ -487,39 +606,6 @@ export default function TwoStepTeacher() {
                     {revealed && (
                       <Scatter data={rlData} fill="#8b5cf6" name="Participants">
                         {rlData.map((_, i) => <Cell key={i} fill="#8b5cf6" />)}
-                      </Scatter>
-                    )}
-                  </ScatterChart>
-                </ResponsiveContainer>
-              )}
-            </ChartCard>
-
-            {/* Chart 4: MB vs MF scatter */}
-            <ChartCard title="Individual Model-Based vs. Model-Free Indices">
-              {(revealed) => (
-                <ResponsiveContainer width="100%" height={300}>
-                  <ScatterChart margin={{ bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis type="number" dataKey="mfIndex" stroke="#9ca3af" name="MF Index"
-                      label={{ value: 'Model-Free Index (β)', position: 'insideBottom', offset: -12, fill: '#9ca3af', fontSize: 11 }} />
-                    <YAxis type="number" dataKey="mbIndex" stroke="#9ca3af" name="MB Index"
-                      label={{ value: 'Model-Based Index (β)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload as ParticipantRL;
-                        return (
-                          <div className="bg-[#1e293b] border border-gray-600 rounded px-3 py-2 text-xs">
-                            <p className="text-white font-semibold">{d.name}</p>
-                            <p className="text-gray-300">MB: {d.mbIndex.toFixed(3)}</p>
-                            <p className="text-gray-300">MF: {d.mfIndex.toFixed(3)}</p>
-                          </div>
-                        );
-                      }}
-                    />
-                    {revealed && (
-                      <Scatter data={rlData} fill="#34d399" name="Participants">
-                        {rlData.map((_, i) => <Cell key={i} fill="#34d399" />)}
                       </Scatter>
                     )}
                   </ScatterChart>

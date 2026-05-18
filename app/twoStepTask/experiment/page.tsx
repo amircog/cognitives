@@ -217,14 +217,15 @@ export default function TwoStepExperiment() {
 
         {/* Stage 1: two clickable options */}
         {phase === 'stage1' && (
-          <div className="flex gap-8">
+          <div className="rounded-2xl p-6 flex gap-8" style={{ background: STAGE1_COLOR.bgLight, border: `2px solid ${STAGE1_COLOR.border}` }}>
             {(['left', 'right'] as const).map(side => {
               const sym = STAGE1_STIMULI[side === 'left' ? 0 : 1];
               return (
                 <button
                   key={side}
                   onPointerDown={e => { e.preventDefault(); handleStage1(side); }}
-                  className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg bg-gray-800 border-2 border-gray-600 active:scale-95`}
+                  className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg text-white active:scale-95`}
+                  style={{ background: STAGE1_COLOR.bg }}
                 >
                   {sym}
                 </button>

@@ -176,9 +176,9 @@ export default function TwoStepPractice() {
           className="max-w-sm text-center flex flex-col items-center gap-6"
         >
           {phase === 'tutorial-stage1' && (
-            <div className="flex gap-6 mb-2">
+            <div className="rounded-2xl p-4 flex gap-6 mb-2" style={{ background: STAGE1_COLOR.bgLight, border: `2px solid ${STAGE1_COLOR.border}` }}>
               {STAGE1_STIMULI.map((s, i) => (
-                <div key={i} className="w-20 h-20 bg-gray-800 border-2 border-gray-600 rounded-2xl flex items-center justify-center text-4xl text-white">
+                <div key={i} className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl text-white" style={{ background: STAGE1_COLOR.bg }}>
                   {s}
                 </div>
               ))}
@@ -271,14 +271,15 @@ export default function TwoStepPractice() {
         {phase === 'stage1' && (
           <div className="flex flex-col items-center gap-6">
             <p className="text-gray-400 text-sm">{isHe ? 'שלב ראשון — בחרו סמל' : 'Stage 1 — Choose a symbol'}</p>
-            <div className="flex gap-6">
+            <div className="rounded-2xl p-6 flex gap-6" style={{ background: STAGE1_COLOR.bgLight, border: `2px solid ${STAGE1_COLOR.border}` }}>
               {(['left', 'right'] as const).map(side => {
                 const sym = STAGE1_STIMULI[side === 'left' ? 0 : 1];
                 return (
                   <button
                     key={side}
                     onPointerDown={e => { e.preventDefault(); handleStage1(side); }}
-                    className={`${STIM_SIZE} rounded-2xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg bg-gray-800 border-2 border-gray-600 hover:border-gray-400 active:scale-95`}
+                    className={`${STIM_SIZE} rounded-xl ${STIM_TEXT} flex items-center justify-center transition-all touch-manipulation shadow-lg text-white hover:scale-105 active:scale-95`}
+                    style={{ background: STAGE1_COLOR.bg }}
                   >
                     {sym}
                   </button>
