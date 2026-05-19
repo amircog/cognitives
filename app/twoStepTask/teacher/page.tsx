@@ -383,6 +383,13 @@ export default function TwoStepTeacher() {
     ];
   }, [activeRows]);
 
+  const stayYDomain = useMemo((): [number, number] => {
+    if (stayData.length === 0) return [0, 100];
+    const lo = Math.min(...stayData.map(d => d.value - d.sem));
+    const hi = Math.max(...stayData.map(d => d.value + d.sem));
+    return [Math.max(0, Math.floor(lo / 5) * 5 - 5), Math.min(100, Math.ceil(hi / 5) * 5 + 5)];
+  }, [stayData]);
+
   // ── Chart 2: RL indices ───────────────────────────────────────────────────
   const rlData = useMemo(() => computeRLIndices(activeRows), [activeRows]);
 
@@ -550,7 +557,7 @@ export default function TwoStepTeacher() {
                   <BarChart data={stayData} barCategoryGap="25%">
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="#9ca3af" domain={[0, 100]}
+                    <YAxis stroke="#9ca3af" domain={stayYDomain}
                       label={{ value: 'Stay Probability (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #374151' }} />
                     <Legend verticalAlign="top" />
