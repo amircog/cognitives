@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  STUDY_LIST,
+  STUDY_LIST_1,
+  STUDY_LIST_2,
   FIXATION_MS,
   WORD_DISPLAY_MS,
   BLANK_MS,
@@ -16,12 +17,13 @@ import {
 import { DistractorResult, RecallResponse, StudyEvent } from '@/types/serial-order';
 import { getSupabase } from '@/lib/supabase';
 
-type ExperimentPhase = 'study' | 'distractor' | 'recall' | 'saving';
+type ExperimentPhase = 'study' | 'distractor' | 'recall' | 'transition' | 'saving';
 type StudySubPhase = 'fixation' | 'word' | 'blank';
 
 export default function SerialOrderExperiment() {
   const router = useRouter();
   const [language, setLanguage] = useState<'en' | 'he'>('he');
+  const [sessionNum, setSessionNum] = useState(1);
   const [expPhase, setExpPhase] = useState<ExperimentPhase>('study');
 
   // Study phase state
@@ -45,6 +47,11 @@ export default function SerialOrderExperiment() {
   const sessionId = useRef('');
   const participantName = useRef<string | null>(null);
 
+  // Accumulated results across sessions
+  const allRecallRef = useRef<RecallResponse[]>([]);
+
+  const currentList = sessionNum === 1 ? STUDY_LIST_1 : STUDY_LIST_2;
+
   useEffect(() => {
     const lang = sessionStorage.getItem('so_language') as 'en' | 'he' | null;
     if (lang) setLanguage(lang);
@@ -57,10 +64,15 @@ export default function SerialOrderExperiment() {
   // ── Study phase timing ──────────────────────────────────────────────────────
   useEffect(() => {
     if (expPhase !== 'study') return;
-    if (wordIdx >= STUDY_LIST.length) {
-      setExpPhase('distractor');
-      distractorStartRef.current = Date.now();
-      problemOnsetRef.current = performance.now();
+    if (wordIdx >= currentList.length) {
+      if (sessionNum === 1) {
+        setExpPhase('distractor');
+        distractorStartRef.current = Date.now();
+        problemOnsetRef.current = performance.now();
+      } else {
+        // Session 2: immediate recall, no distractor
+        setExpPhase('recall');
+      }
       return;
     }
 
@@ -75,8 +87,9 @@ export default function SerialOrderExperiment() {
         studyEventsRef.current.push({
           session_id: sessionId.current,
           participant_name: participantName.current,
-          serial_position: STUDY_LIST[wordIdx].serial_position,
-          word: STUDY_LIST[wordIdx].word,
+          session_number: sessionNum,
+          serial_position: currentList[wordIdx].serial_position,
+          word: currentList[wordIdx].word,
           word_onset_time: new Date().toISOString(),
           word_offset_time: '',
         });
@@ -92,9 +105,9 @@ export default function SerialOrderExperiment() {
     }, durations[studySubPhase]);
 
     return () => clearTimeout(timer);
-  }, [expPhase, wordIdx, studySubPhase]);
+  }, [expPhase, wordIdx, studySubPhase, sessionNum, currentList]);
 
-  // ─�� Distractor countdown ────────────────────────────────────────────────────
+  // ── Distractor countdown ────────────────────────────────────────────────────
   useEffect(() => {
     if (expPhase !== 'distractor') return;
     const interval = setInterval(() => {
@@ -109,11 +122,12 @@ export default function SerialOrderExperiment() {
     return () => clearInterval(interval);
   }, [expPhase]);
 
-  // ── Recall countdown ────���───────────────────────────────────────────────────
+  // ── Recall countdown ────────────────────────────────────────────────────────
   const recallStartRef = useRef<number>(0);
   useEffect(() => {
     if (expPhase !== 'recall') return;
     recallStartRef.current = Date.now();
+    setRecallTimeLeft(RECALL_DURATION_MS / 1000);
     const interval = setInterval(() => {
       const elapsed = (Date.now() - recallStartRef.current) / 1000;
       const remaining = Math.max(0, RECALL_DURATION_MS / 1000 - elapsed);
@@ -124,7 +138,7 @@ export default function SerialOrderExperiment() {
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [expPhase]);
+  }, [expPhase, sessionNum]);
 
   // ── Distractor response ─────────────────────────────────────────────────────
   const handleDistractorSubmit = () => {
@@ -147,8 +161,7 @@ export default function SerialOrderExperiment() {
 
   // ── Recall submission ───────────────────────────────────────────────────────
   const handleSubmitRecall = useCallback(async () => {
-    if (expPhase === 'saving') return;
-    setExpPhase('saving');
+    if (expPhase === 'saving' || expPhase === 'transition') return;
 
     const lines = recallTextRef.current.split('\n').filter(l => l.trim());
     const recallResponses: RecallResponse[] = [];
@@ -156,13 +169,14 @@ export default function SerialOrderExperiment() {
 
     lines.forEach((line, i) => {
       const clean = line.trim();
-      const match = matchResponse(clean, STUDY_LIST);
+      const match = matchResponse(clean, sessionNum === 1 ? STUDY_LIST_1 : STUDY_LIST_2);
       const isRepetition = match ? alreadyMatched.has(match.word) : false;
       if (match && !isRepetition) alreadyMatched.add(match.word);
 
       recallResponses.push({
         session_id: sessionId.current,
         participant_name: participantName.current,
+        session_number: sessionNum,
         output_position: i + 1,
         response_raw: line,
         response_clean: clean,
@@ -174,46 +188,83 @@ export default function SerialOrderExperiment() {
       });
     });
 
-    // Save to Supabase
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        if (studyEventsRef.current.length > 0) {
-          await supabase.from('serial_order_study').insert(studyEventsRef.current);
-        }
-        if (distractorResultsRef.current.length > 0) {
-          await supabase.from('serial_order_distractor').insert(distractorResultsRef.current);
-        }
-        if (recallResponses.length > 0) {
-          await supabase.from('serial_order_recall').insert(recallResponses);
-        }
-      }
-    } catch (e) {
-      console.error('Save error:', e);
-    }
+    allRecallRef.current.push(...recallResponses);
 
-    // Store in session for thanks page
-    sessionStorage.setItem('so_recall_results', JSON.stringify(recallResponses));
-    router.push('/serialOrder/thanks');
-  }, [expPhase, router]);
+    if (sessionNum === 1) {
+      // Transition to session 2
+      setExpPhase('transition');
+      // Save session 1 data now
+      try {
+        const supabase = getSupabase();
+        if (supabase) {
+          if (studyEventsRef.current.length > 0) {
+            await supabase.from('serial_order_study').insert(studyEventsRef.current);
+          }
+          if (distractorResultsRef.current.length > 0) {
+            await supabase.from('serial_order_distractor').insert(distractorResultsRef.current);
+          }
+          if (recallResponses.length > 0) {
+            await supabase.from('serial_order_recall').insert(recallResponses);
+          }
+        }
+      } catch (e) {
+        console.error('Save error:', e);
+      }
+      // Reset for session 2
+      studyEventsRef.current = [];
+      setRecallText('');
+      recallTextRef.current = '';
+      setWordIdx(0);
+      setStudySubPhase('fixation');
+    } else {
+      // Session 2 done — save and finish
+      setExpPhase('saving');
+      try {
+        const supabase = getSupabase();
+        if (supabase) {
+          if (studyEventsRef.current.length > 0) {
+            await supabase.from('serial_order_study').insert(studyEventsRef.current);
+          }
+          if (recallResponses.length > 0) {
+            await supabase.from('serial_order_recall').insert(recallResponses);
+          }
+        }
+      } catch (e) {
+        console.error('Save error:', e);
+      }
+      sessionStorage.setItem('so_recall_results', JSON.stringify(allRecallRef.current));
+      router.push('/serialOrder/thanks');
+    }
+  }, [expPhase, sessionNum, router]);
+
+  // ── Start session 2 ─────────────────────────────────────────────────────────
+  const startSession2 = () => {
+    setSessionNum(2);
+    setExpPhase('study');
+  };
 
   // ── Study phase render ──────────────────────────────────────────────────────
   if (expPhase === 'study') {
-    const progress = (wordIdx / STUDY_LIST.length) * 100;
+    const progress = (wordIdx / currentList.length) * 100;
     return (
       <div className="bg-[#0f172a] flex flex-col select-none" style={{ height: '100dvh' }}>
         <div className="flex-shrink-0 h-6">
           <div className="h-1.5 bg-gray-800">
             <motion.div className="h-full bg-emerald-500" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
           </div>
+          <div className="flex justify-end px-4 pt-0.5">
+            <span className="text-xs text-gray-600">
+              {isHe ? `רשימה ${sessionNum}` : `List ${sessionNum}`}
+            </span>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
           {studySubPhase === 'fixation' && (
             <div className="text-white text-6xl font-thin">+</div>
           )}
-          {studySubPhase === 'word' && wordIdx < STUDY_LIST.length && (
+          {studySubPhase === 'word' && wordIdx < currentList.length && (
             <div className="text-white text-5xl font-bold" style={{ fontFamily: 'serif' }}>
-              {STUDY_LIST[wordIdx].word}
+              {currentList[wordIdx].word}
             </div>
           )}
           {studySubPhase === 'blank' && <div />}
@@ -224,6 +275,8 @@ export default function SerialOrderExperiment() {
 
   // ── Distractor phase render ─────────────────────────────────────────────────
   if (expPhase === 'distractor') {
+    const minutes = Math.floor(distractorTimeLeft / 60);
+    const seconds = distractorTimeLeft % 60;
     return (
       <div className="bg-[#0f172a] flex flex-col select-none" style={{ height: '100dvh' }} dir={isHe ? 'rtl' : 'ltr'}>
         <div className="flex-shrink-0 px-4 pt-4">
@@ -231,7 +284,7 @@ export default function SerialOrderExperiment() {
             {isHe ? 'פתרו כמה שיותר תרגילי חשבון' : 'Solve as many problems as you can'}
           </p>
           <p className="text-emerald-400 text-center text-lg font-bold mt-1">
-            {distractorTimeLeft}s
+            {minutes}:{String(seconds).padStart(2, '0')}
           </p>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4">
@@ -265,6 +318,9 @@ export default function SerialOrderExperiment() {
     return (
       <div className="bg-[#0f172a] flex flex-col" style={{ height: '100dvh' }} dir={isHe ? 'rtl' : 'ltr'}>
         <div className="flex-shrink-0 px-4 pt-4">
+          <p className="text-gray-500 text-xs text-center mb-1">
+            {isHe ? `רשימה ${sessionNum}` : `List ${sessionNum}`}
+          </p>
           <p className="text-emerald-400 text-center text-lg font-bold">
             {Math.floor(recallTimeLeft / 60)}:{String(recallTimeLeft % 60).padStart(2, '0')}
           </p>
@@ -290,6 +346,30 @@ export default function SerialOrderExperiment() {
             {isHe ? 'שלח' : 'Submit'}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── Transition screen between sessions ──────────────────────────────────────
+  if (expPhase === 'transition') {
+    return (
+      <div className="bg-[#0f172a] flex flex-col items-center justify-center gap-6 px-4" style={{ height: '100dvh' }} dir={isHe ? 'rtl' : 'ltr'}>
+        <div className="text-center max-w-md">
+          <p className="text-white text-xl font-bold mb-3">
+            {isHe ? 'כל הכבוד!' : 'Well done!'}
+          </p>
+          <p className="text-gray-300 text-sm">
+            {isHe
+              ? 'עכשיו תראו רשימה חדשה של מילים. הפעם תתבקשו להיזכר מיד לאחר הרשימה.'
+              : 'Now you will see a new word list. This time you will recall immediately after the list.'}
+          </p>
+        </div>
+        <button
+          onPointerDown={e => { e.preventDefault(); startSession2(); }}
+          className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg"
+        >
+          {isHe ? 'המשך' : 'Continue'}
+        </button>
       </div>
     );
   }

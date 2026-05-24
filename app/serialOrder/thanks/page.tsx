@@ -19,8 +19,10 @@ export default function SerialOrderThanks() {
   }, []);
 
   const isHe = language === 'he';
-  const correctCount = results.filter(r => r.is_correct_recall).length;
-  const totalResponses = results.length;
+  const s1 = results.filter(r => r.session_number === 1);
+  const s2 = results.filter(r => r.session_number === 2);
+  const correct1 = s1.filter(r => r.is_correct_recall).length;
+  const correct2 = s2.filter(r => r.is_correct_recall).length;
 
   return (
     <main className="min-h-screen bg-[#0f172a] flex items-center justify-center p-8">
@@ -48,15 +50,19 @@ export default function SerialOrderThanks() {
             {isHe ? 'סיימת את משימת הזיכרון הסדרתי!' : 'You completed the serial order memory task!'}
           </p>
           {results.length > 0 && (
-            <div className="bg-gray-800 rounded-lg p-4 mt-4">
-              <p className="text-emerald-400 text-2xl font-bold">
-                {correctCount} / 24
-              </p>
-              <p className="text-gray-400 text-sm mt-1">
-                {isHe
-                  ? `נזכרת ב-${correctCount} מילים מתוך 24 (מתוך ${totalResponses} תשובות)`
-                  : `Recalled ${correctCount} of 24 words (from ${totalResponses} responses)`}
-              </p>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="bg-gray-800 rounded-lg p-4">
+                <p className="text-gray-400 text-xs mb-1">
+                  {isHe ? 'רשימה 1 (עם הסחה)' : 'List 1 (with distractor)'}
+                </p>
+                <p className="text-emerald-400 text-2xl font-bold">{correct1} / 20</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4">
+                <p className="text-gray-400 text-xs mb-1">
+                  {isHe ? 'רשימה 2 (ללא הסחה)' : 'List 2 (immediate)'}
+                </p>
+                <p className="text-emerald-400 text-2xl font-bold">{correct2} / 20</p>
+              </div>
             </div>
           )}
         </div>

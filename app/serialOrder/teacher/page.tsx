@@ -4,10 +4,10 @@ import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { GraduationCap, RefreshCw } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
-import { RecallResponse } from '@/types/serial-order';
+import { RecallResponse, DistractorResult } from '@/types/serial-order';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, BarChart, Bar,
+  ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
@@ -38,7 +38,9 @@ function ChartCard({ title, children }: { title: string; children: (revealed: bo
 interface ParticipantData {
   sessionId: string;
   name: string | null;
-  recalls: RecallResponse[];
+  recallsS1: RecallResponse[];
+  recallsS2: RecallResponse[];
+  distractor: DistractorResult[];
 }
 
 const COLORS = [
@@ -78,6 +80,7 @@ export default function SerialOrderTeacher() {
       const supabase = getSupabase();
       if (!supabase) throw new Error('Supabase not available');
 
+      // Fetch recall data
       const allRecalls: RecallResponse[] = [];
       let from = 0;
       while (true) {
@@ -93,6 +96,22 @@ export default function SerialOrderTeacher() {
         from += 1000;
       }
 
+      // Fetch distractor data
+      const allDistractor: DistractorResult[] = [];
+      from = 0;
+      while (true) {
+        const { data, error: fetchError } = await supabase
+          .from('serial_order_distractor')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .range(from, from + 999);
+        if (fetchError) throw fetchError;
+        if (!data || data.length === 0) break;
+        allDistractor.push(...(data as DistractorResult[]));
+        if (data.length < 1000) break;
+        from += 1000;
+      }
+
       if (allRecalls.length === 0) {
         setError('No data available yet.');
         setLoading(false);
@@ -103,10 +122,17 @@ export default function SerialOrderTeacher() {
       const bySession = new Map<string, ParticipantData>();
       allRecalls.forEach(r => {
         if (!bySession.has(r.session_id)) {
-          bySession.set(r.session_id, { sessionId: r.session_id, name: r.participant_name, recalls: [] });
+          bySession.set(r.session_id, { sessionId: r.session_id, name: r.participant_name, recallsS1: [], recallsS2: [], distractor: [] });
         }
-        bySession.get(r.session_id)!.recalls.push(r);
+        const p = bySession.get(r.session_id)!;
+        if (r.session_number === 2) p.recallsS2.push(r);
+        else p.recallsS1.push(r);
       });
+      allDistractor.forEach(d => {
+        const p = bySession.get(d.session_id);
+        if (p) p.distractor.push(d);
+      });
+
       setParticipants(Array.from(bySession.values()));
     } catch (err) {
       console.error(err);
@@ -120,101 +146,112 @@ export default function SerialOrderTeacher() {
     if (authed) fetchData();
   }, [authed]);
 
-  // ── Compute serial position curve ─────────────────────────────────────────
-  function computeSerialPositionCurve() {
-    const positionCounts = Array(24).fill(0);
-    const nParticipants = participants.length;
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function getRecalledPositions(recalls: RecallResponse[]): Set<number> {
+    const set = new Set<number>();
+    recalls.forEach(r => {
+      if (r.is_correct_recall && r.matched_serial_position !== null) set.add(r.matched_serial_position);
+    });
+    return set;
+  }
+
+  // ── Serial position curve ─────────────────────────────────────────────────
+  function computeSerialPositionCurve(sessionNum: 1 | 2) {
+    const nWords = 20;
+    const positionCounts = Array(nWords).fill(0);
+    const nP = participants.length;
     participants.forEach(p => {
-      const recalled = new Set<number>();
-      p.recalls.forEach(r => {
-        if (r.is_correct_recall && r.matched_serial_position !== null) {
-          recalled.add(r.matched_serial_position);
-        }
-      });
-      recalled.forEach(pos => { positionCounts[pos - 1]++; });
+      const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
+      const recalled = getRecalledPositions(recalls);
+      recalled.forEach(pos => { if (pos >= 1 && pos <= nWords) positionCounts[pos - 1]++; });
     });
     return positionCounts.map((count, i) => ({
       position: i + 1,
-      probability: nParticipants > 0 ? count / nParticipants : 0,
+      probability: nP > 0 ? count / nP : 0,
     }));
   }
 
-  // ── Compute per-participant thirds ────────────────────────────────────────
-  function computeParticipantThirds() {
+  // ── Per-participant thirds ────────────────────────────────────────────────
+  function computeParticipantThirds(sessionNum: 1 | 2) {
+    const nWords = 20;
+    const thirdSize = Math.ceil(nWords / 3);
     return participants.map(p => {
-      const recalled = new Set<number>();
-      p.recalls.forEach(r => {
-        if (r.is_correct_recall && r.matched_serial_position !== null) {
-          recalled.add(r.matched_serial_position);
-        }
-      });
-      const primacy = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 1) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
-      const middle = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 9) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
-      const recency = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 17) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
+      const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
+      const recalled = getRecalledPositions(recalls);
+      const primacy = Array.from({ length: 7 }, (_, i): number => recalled.has(i + 1) ? 1 : 0).reduce((a, b) => a + b, 0) / 7;
+      const middle = Array.from({ length: 6 }, (_, i): number => recalled.has(i + 8) ? 1 : 0).reduce((a, b) => a + b, 0) / 6;
+      const recency = Array.from({ length: 7 }, (_, i): number => recalled.has(i + 14) ? 1 : 0).reduce((a, b) => a + b, 0) / 7;
       return { name: p.name ?? p.sessionId.slice(0, 6), primacy, middle, recency };
     });
   }
 
-  // ── Compute simple lag distribution ───────────────────────────────────────
-  function computeLagDistribution() {
-    const lagCounts: Record<string, number> = {};
-    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
-    bins.forEach(b => { lagCounts[b] = 0; });
-
-    let totalTransitions = 0;
+  // ── Lag computation (for a given session) ─────────────────────────────────
+  function computeTransitions(sessionNum: 1 | 2) {
+    const transitions: { from: number; to: number }[] = [];
     participants.forEach(p => {
-      const correctRecalls = p.recalls
+      const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
+      const correctRecalls = recalls
         .filter(r => r.is_correct_recall && r.matched_serial_position !== null && !r.is_repetition)
         .sort((a, b) => a.output_position - b.output_position);
-
       for (let i = 0; i < correctRecalls.length - 1; i++) {
-        const lag = correctRecalls[i + 1].matched_serial_position! - correctRecalls[i].matched_serial_position!;
-        if (lag === 0) continue;
-        totalTransitions++;
-        if (lag <= -7) lagCounts['≤-7']++;
-        else if (lag >= 7) lagCounts['≥+7']++;
-        else {
-          const key = lag > 0 ? `+${lag}` : `${lag}`;
-          if (lagCounts[key] !== undefined) lagCounts[key]++;
-        }
+        transitions.push({
+          from: correctRecalls[i].matched_serial_position!,
+          to: correctRecalls[i + 1].matched_serial_position!,
+        });
+      }
+    });
+    return transitions;
+  }
+
+  function computeLagDistribution(sessionNum: 1 | 2) {
+    const transitions = computeTransitions(sessionNum);
+    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
+    const lagCounts: Record<string, number> = {};
+    bins.forEach(b => { lagCounts[b] = 0; });
+    let total = 0;
+
+    transitions.forEach(({ from, to }) => {
+      const lag = to - from;
+      if (lag === 0) return;
+      total++;
+      if (lag <= -7) lagCounts['≤-7']++;
+      else if (lag >= 7) lagCounts['≥+7']++;
+      else {
+        const key = lag > 0 ? `+${lag}` : `${lag}`;
+        if (lagCounts[key] !== undefined) lagCounts[key]++;
       }
     });
 
     return bins.map(bin => ({
       lag: bin,
-      count: lagCounts[bin],
-      proportion: totalTransitions > 0 ? lagCounts[bin] / totalTransitions : 0,
+      proportion: total > 0 ? lagCounts[bin] / total : 0,
     }));
   }
 
-  // ── Compute lag-CRP ───────────────────────────────────────────────────────
-  function computeLagCRP() {
+  function computeLagCRP(sessionNum: 1 | 2) {
     const actualByLag: Record<number, number> = {};
     const possibleByLag: Record<number, number> = {};
+    const nWords = 20;
 
     participants.forEach(p => {
-      const correctRecalls = p.recalls
+      const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
+      const correctRecalls = recalls
         .filter(r => r.is_correct_recall && r.matched_serial_position !== null && !r.is_repetition)
         .sort((a, b) => a.output_position - b.output_position);
-
       const recalledPositions = correctRecalls.map(r => r.matched_serial_position!);
-      const allPositions = new Set(Array.from({ length: 24 }, (_, i) => i + 1));
+      const allPositions = new Set(Array.from({ length: nWords }, (_, i) => i + 1));
 
       for (let i = 0; i < recalledPositions.length - 1; i++) {
         const currentPos = recalledPositions[i];
         const nextPos = recalledPositions[i + 1];
         const lag = nextPos - currentPos;
 
-        // Items already recalled before this transition
         const alreadyRecalled = new Set(recalledPositions.slice(0, i + 1));
-        // Available items = all positions minus already recalled
-        const available = new Set([...allPositions].filter(p => !alreadyRecalled.has(p)));
+        const available = [...allPositions].filter(pos => !alreadyRecalled.has(pos));
 
-        // Record actual transition
         if (!actualByLag[lag]) actualByLag[lag] = 0;
         actualByLag[lag]++;
 
-        // Record all possible lags
         available.forEach(pos => {
           const possibleLag = pos - currentPos;
           if (!possibleByLag[possibleLag]) possibleByLag[possibleLag] = 0;
@@ -225,9 +262,7 @@ export default function SerialOrderTeacher() {
 
     const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
     return bins.map(bin => {
-      let actual = 0;
-      let possible = 0;
-
+      let actual = 0, possible = 0;
       if (bin === '≤-7') {
         for (const lag in actualByLag) if (parseInt(lag) <= -7) actual += actualByLag[lag];
         for (const lag in possibleByLag) if (parseInt(lag) <= -7) possible += possibleByLag[lag];
@@ -239,7 +274,6 @@ export default function SerialOrderTeacher() {
         actual = actualByLag[lagNum] ?? 0;
         possible = possibleByLag[lagNum] ?? 0;
       }
-
       return { lag: bin, crp: possible > 0 ? actual / possible : 0 };
     });
   }
@@ -248,32 +282,21 @@ export default function SerialOrderTeacher() {
   function computeSummaryStats() {
     if (participants.length === 0) return null;
     const nP = participants.length;
+    let totalAdjacentTransitions = 0, totalForwardAdjacent = 0, totalBackwardAdjacent = 0, totalTransitions = 0;
 
-    // Per-participant recall probabilities
     const primacyRates: number[] = [];
     const middleRates: number[] = [];
     const recencyRates: number[] = [];
-    let totalAdjacentTransitions = 0;
-    let totalForwardAdjacent = 0;
-    let totalBackwardAdjacent = 0;
-    let totalTransitions = 0;
 
     participants.forEach(p => {
-      const recalled = new Set<number>();
-      p.recalls.forEach(r => {
-        if (r.is_correct_recall && r.matched_serial_position !== null) {
-          recalled.add(r.matched_serial_position);
-        }
-      });
+      const recalled = getRecalledPositions(p.recallsS1);
       primacyRates.push([1, 2, 3, 4].filter(pos => recalled.has(pos)).length / 4);
-      middleRates.push(Array.from({ length: 8 }, (_, i) => i + 9).filter(pos => recalled.has(pos)).length / 8);
-      recencyRates.push([21, 22, 23, 24].filter(pos => recalled.has(pos)).length / 4);
+      middleRates.push(Array.from({ length: 8 }, (_, i) => i + 7).filter(pos => recalled.has(pos)).length / 8);
+      recencyRates.push([17, 18, 19, 20].filter(pos => recalled.has(pos)).length / 4);
 
-      // Lag transitions
-      const correctRecalls = p.recalls
+      const correctRecalls = p.recallsS1
         .filter(r => r.is_correct_recall && r.matched_serial_position !== null && !r.is_repetition)
         .sort((a, b) => a.output_position - b.output_position);
-
       for (let i = 0; i < correctRecalls.length - 1; i++) {
         const lag = correctRecalls[i + 1].matched_serial_position! - correctRecalls[i].matched_serial_position!;
         if (lag === 0) continue;
@@ -284,7 +307,7 @@ export default function SerialOrderTeacher() {
       }
     });
 
-    const mean = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const mean = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
     return {
       primacy: mean(primacyRates),
@@ -295,6 +318,24 @@ export default function SerialOrderTeacher() {
       backwardAdjacentRate: totalTransitions > 0 ? totalBackwardAdjacent / totalTransitions : 0,
       nParticipants: nP,
     };
+  }
+
+  // ── Scatter: session 1 recall vs session 2 recall ─────────────────────────
+  function computeRecallScatter() {
+    return participants.map(p => {
+      const s1correct = p.recallsS1.filter(r => r.is_correct_recall).length;
+      const s2correct = p.recallsS2.filter(r => r.is_correct_recall).length;
+      return { x: (s1correct / 20) * 100, y: (s2correct / 20) * 100, name: p.name ?? p.sessionId.slice(0, 6) };
+    });
+  }
+
+  // ── Scatter: arithmetic count vs accuracy ─────────────────────────────────
+  function computeArithmeticScatter() {
+    return participants.filter(p => p.distractor.length > 0).map(p => {
+      const total = p.distractor.length;
+      const correct = p.distractor.filter(d => d.accuracy).length;
+      return { x: total, y: total > 0 ? (correct / total) * 100 : 0, name: p.name ?? p.sessionId.slice(0, 6) };
+    });
   }
 
   // ── Auth gate ─────────────────────────────────────────────────────────────
@@ -341,10 +382,20 @@ export default function SerialOrderTeacher() {
   }
 
   const summaryStats = computeSummaryStats();
-  const serialPositionData = computeSerialPositionCurve();
-  const participantThirds = computeParticipantThirds();
-  const lagData = computeLagDistribution();
-  const lagCRPData = computeLagCRP();
+  const spcS1 = computeSerialPositionCurve(1);
+  const spcS2 = computeSerialPositionCurve(2);
+  const thirdsS1 = computeParticipantThirds(1);
+  const thirdsS2 = computeParticipantThirds(2);
+  const lagS1 = computeLagDistribution(1);
+  const lagS2 = computeLagDistribution(2);
+  const lagCRPS1 = computeLagCRP(1);
+  const lagCRPS2 = computeLagCRP(2);
+  const recallScatter = computeRecallScatter();
+  const arithmeticScatter = computeArithmeticScatter();
+
+  // Merge lag data for dual-line charts
+  const lagCombined = lagS1.map((d, i) => ({ lag: d.lag, session1: d.proportion, session2: lagS2[i].proportion }));
+  const lagCRPCombined = lagCRPS1.map((d, i) => ({ lag: d.lag, session1: d.crp, session2: lagCRPS2[i].crp }));
 
   return (
     <main className="min-h-screen p-8">
@@ -385,11 +436,11 @@ export default function SerialOrderTeacher() {
                 <p className="text-2xl font-bold">{(summaryStats.primacy * 100).toFixed(0)}%</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4 text-center">
-                <p className="text-xs text-gray-400">Middle (9-16)</p>
+                <p className="text-xs text-gray-400">Middle (7-14)</p>
                 <p className="text-2xl font-bold">{(summaryStats.middle * 100).toFixed(0)}%</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4 text-center">
-                <p className="text-xs text-gray-400">Recency (21-24)</p>
+                <p className="text-xs text-gray-400">Recency (17-20)</p>
                 <p className="text-2xl font-bold">{(summaryStats.recency * 100).toFixed(0)}%</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4 text-center">
@@ -404,46 +455,42 @@ export default function SerialOrderTeacher() {
               </div>
             </div>
 
-            {/* Plot 1: Serial Position Curve */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <ChartCard title="Serial Position Curve (Aggregate)">
+            {/* Row 1: Session 1 serial position + thirds */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Session 1 — Delayed Recall (2.5 min distractor)</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <ChartCard title="Serial Position Curve (S1)">
                 {(revealed) => (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={serialPositionData} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={spcS1} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="position" stroke="#9ca3af" label={{ value: 'Serial Position', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
-                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(v * 100).toFixed(0)}%`}
+                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
                         formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
-                      {revealed && (
-                        <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5}
-                          dot={{ fill: '#34d399', r: 3 }} />
-                      )}
+                      {revealed && <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5} dot={{ fill: '#34d399', r: 3 }} />}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>
 
-              {/* Plot 2: Per-participant thirds */}
-              <ChartCard title="Per-Participant Recall by Thirds">
+              <ChartCard title="Per-Participant Thirds (S1)">
                 {(revealed) => (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={260}>
                     <LineChart
                       data={[
-                        { third: 'Primacy (1-8)', ...Object.fromEntries(participantThirds.map((p, i) => [`p${i}`, p.primacy])) },
-                        { third: 'Middle (9-16)', ...Object.fromEntries(participantThirds.map((p, i) => [`p${i}`, p.middle])) },
-                        { third: 'Recency (17-24)', ...Object.fromEntries(participantThirds.map((p, i) => [`p${i}`, p.recency])) },
+                        { third: 'Primacy (1-7)', ...Object.fromEntries(thirdsS1.map((p, i) => [`p${i}`, p.primacy])) },
+                        { third: 'Middle (8-13)', ...Object.fromEntries(thirdsS1.map((p, i) => [`p${i}`, p.middle])) },
+                        { third: 'Recency (14-20)', ...Object.fromEntries(thirdsS1.map((p, i) => [`p${i}`, p.recency])) },
                       ]}
-                      margin={{ top: 10, right: 20, left: 10, bottom: 30 }}
+                      margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="third" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(v * 100).toFixed(0)}%`}
-                        label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
                         formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`]} />
-                      {revealed && participantThirds.map((p, i) => (
+                      {revealed && thirdsS1.map((p, i) => (
                         <Line key={i} type="monotone" dataKey={`p${i}`} stroke={COLORS[i % COLORS.length]}
                           strokeWidth={1.5} dot={{ r: 3 }} name={p.name} />
                       ))}
@@ -453,19 +500,71 @@ export default function SerialOrderTeacher() {
               </ChartCard>
             </div>
 
-            {/* Plot 3 & 4: Lag plots */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ChartCard title="Lag Transition (Simple Count)">
+            {/* Row 2: Session 2 serial position + thirds */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Session 2 — Immediate Recall (no distractor)</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <ChartCard title="Serial Position Curve (S2)">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={spcS2} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="position" stroke="#9ca3af" label={{ value: 'Serial Position', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
+                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
+                        label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
+                      {revealed && <Line type="monotone" dataKey="probability" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: '#60a5fa', r: 3 }} />}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              <ChartCard title="Per-Participant Thirds (S2)">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart
+                      data={[
+                        { third: 'Primacy (1-7)', ...Object.fromEntries(thirdsS2.map((p, i) => [`p${i}`, p.primacy])) },
+                        { third: 'Middle (8-13)', ...Object.fromEntries(thirdsS2.map((p, i) => [`p${i}`, p.middle])) },
+                        { third: 'Recency (14-20)', ...Object.fromEntries(thirdsS2.map((p, i) => [`p${i}`, p.recency])) },
+                      ]}
+                      margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="third" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`]} />
+                      {revealed && thirdsS2.map((p, i) => (
+                        <Line key={i} type="monotone" dataKey={`p${i}`} stroke={COLORS[i % COLORS.length]}
+                          strokeWidth={1.5} dot={{ r: 3 }} name={p.name} />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
+
+            {/* Row 3: Lag plots with both sessions */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Temporal Contiguity</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <ChartCard title="Lag Transition (Simple Proportion)">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={lagData} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                    <LineChart data={lagCombined} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="lag" stroke="#9ca3af" label={{ value: 'Lag', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
                       <YAxis stroke="#9ca3af" label={{ value: 'Proportion', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [Number(v).toFixed(3), 'Proportion']} />
-                      {revealed && <Bar dataKey="proportion" fill="#34d399" radius={[4, 4, 0, 0]} />}
-                    </BarChart>
+                        formatter={(v) => [Number(v).toFixed(3)]} />
+                      <Legend verticalAlign="top" />
+                      {revealed && (
+                        <>
+                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" />
+                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" />
+                        </>
+                      )}
+                    </LineChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>
@@ -473,15 +572,69 @@ export default function SerialOrderTeacher() {
               <ChartCard title="Lag-CRP (Conditional Response Probability)">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={lagCRPData} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                    <LineChart data={lagCRPCombined} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="lag" stroke="#9ca3af" label={{ value: 'Lag', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
-                      <YAxis stroke="#9ca3af" domain={[0, 'auto']}
-                        label={{ value: 'CRP', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <YAxis stroke="#9ca3af" domain={[0, 'auto']} label={{ value: 'CRP', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [Number(v).toFixed(3), 'CRP']} />
-                      {revealed && <Bar dataKey="crp" fill="#60a5fa" radius={[4, 4, 0, 0]} />}
-                    </BarChart>
+                        formatter={(v) => [Number(v).toFixed(3)]} />
+                      <Legend verticalAlign="top" />
+                      {revealed && (
+                        <>
+                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" />
+                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" />
+                        </>
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
+
+            {/* Row 4: Scatter plots */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Individual Differences</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ChartCard title="Recall: Session 1 vs Session 2">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="x" stroke="#9ca3af" domain={[0, 100]}
+                        label={{ value: 'S1 Recall %', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
+                      <YAxis type="number" dataKey="y" stroke="#9ca3af" domain={[0, 100]}
+                        label={{ value: 'S2 Recall %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <ZAxis range={[60, 60]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                        formatter={(v) => [`${Number(v).toFixed(0)}%`]}
+                        labelFormatter={() => ''} />
+                      {revealed && (
+                        <>
+                          <Scatter data={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
+                            line={{ stroke: '#6b7280', strokeWidth: 1.5, strokeDasharray: '6 4' }}
+                            shape={(() => <></>) as unknown as React.ElementType}
+                            legendType="none" />
+                          <Scatter data={recallScatter} fill="#34d399" />
+                        </>
+                      )}
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              <ChartCard title="Arithmetic: # Questions vs Accuracy">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="x" stroke="#9ca3af"
+                        label={{ value: '# Questions Attempted', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
+                      <YAxis type="number" dataKey="y" stroke="#9ca3af" domain={[0, 100]}
+                        label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <ZAxis range={[60, 60]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                        labelFormatter={() => ''} />
+                      {revealed && <Scatter data={arithmeticScatter} fill="#fbbf24" />}
+                    </ScatterChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>

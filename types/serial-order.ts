@@ -22,6 +22,7 @@ export interface DistractorResult {
 export interface RecallResponse {
   session_id: string;
   participant_name: string | null;
+  session_number: number;
   output_position: number;
   response_raw: string;
   response_clean: string;
@@ -35,6 +36,7 @@ export interface RecallResponse {
 export interface StudyEvent {
   session_id: string;
   participant_name: string | null;
+  session_number: number;
   serial_position: number;
   word: string;
   word_onset_time: string;
