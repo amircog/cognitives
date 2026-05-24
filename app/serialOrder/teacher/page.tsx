@@ -609,9 +609,10 @@ export default function SerialOrderTeacher() {
                         labelFormatter={() => ''} />
                       {revealed && (
                         <>
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                           <Scatter data={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
                             line={{ stroke: '#6b7280', strokeWidth: 1.5, strokeDasharray: '6 4' }}
-                            shape={() => null}
+                            shape={(() => <></>) as any}
                             legendType="none" />
                           <Scatter data={recallScatter} fill="#34d399" />
                         </>
