@@ -415,7 +415,7 @@ export default function SerialOrderTeacher() {
                       <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(v * 100).toFixed(0)}%`}
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v: number) => [`${(v * 100).toFixed(1)}%`, 'Recall']} />
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
                       {revealed && (
                         <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5}
                           dot={{ fill: '#34d399', r: 3 }} />
@@ -442,7 +442,7 @@ export default function SerialOrderTeacher() {
                       <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(v * 100).toFixed(0)}%`}
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v: number) => [`${(v * 100).toFixed(1)}%`]} />
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`]} />
                       {revealed && participantThirds.map((p, i) => (
                         <Line key={i} type="monotone" dataKey={`p${i}`} stroke={COLORS[i % COLORS.length]}
                           strokeWidth={1.5} dot={{ r: 3 }} name={p.name} />
@@ -463,7 +463,7 @@ export default function SerialOrderTeacher() {
                       <XAxis dataKey="lag" stroke="#9ca3af" label={{ value: 'Lag', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
                       <YAxis stroke="#9ca3af" label={{ value: 'Proportion', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v: number) => [v.toFixed(3), 'Proportion']} />
+                        formatter={(v) => [Number(v).toFixed(3), 'Proportion']} />
                       {revealed && <Bar dataKey="proportion" fill="#34d399" radius={[4, 4, 0, 0]} />}
                     </BarChart>
                   </ResponsiveContainer>
@@ -479,7 +479,7 @@ export default function SerialOrderTeacher() {
                       <YAxis stroke="#9ca3af" domain={[0, 'auto']}
                         label={{ value: 'CRP', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v: number) => [v.toFixed(3), 'CRP']} />
+                        formatter={(v) => [Number(v).toFixed(3), 'CRP']} />
                       {revealed && <Bar dataKey="crp" fill="#60a5fa" radius={[4, 4, 0, 0]} />}
                     </BarChart>
                   </ResponsiveContainer>
