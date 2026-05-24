@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const EXPERIMENT_SLUGS = new Set([
   'stroop', 'drm', 'bouba-kiki', 'mentalRep', 'summaryStats',
   'posnerCueing', 'visualSearch', 'CompositeFace', 'wordSuperiority',
-  'srt', 'twoStepTask',
+  'srt', 'twoStepTask', 'serialOrder',
 ]);
 
 export async function middleware(request: NextRequest) {
@@ -57,6 +57,6 @@ export const config = {
     '/summaryStats/:path*',    '/posnerCueing/:path*',
     '/visualSearch/:path*',    '/CompositeFace/:path*',
     '/wordSuperiority/:path*', '/srt/:path*',
-    '/twoStepTask/:path*',
+    '/twoStepTask/:path*',     '/serialOrder/:path*',
   ],
 };
