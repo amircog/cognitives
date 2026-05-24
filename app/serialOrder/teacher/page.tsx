@@ -148,9 +148,9 @@ export default function SerialOrderTeacher() {
           recalled.add(r.matched_serial_position);
         }
       });
-      const primacy = Array.from({ length: 8 }, (_, i) => recalled.has(i + 1) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
-      const middle = Array.from({ length: 8 }, (_, i) => recalled.has(i + 9) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
-      const recency = Array.from({ length: 8 }, (_, i) => recalled.has(i + 17) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
+      const primacy = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 1) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
+      const middle = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 9) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
+      const recency = Array.from({ length: 8 }, (_, i): number => recalled.has(i + 17) ? 1 : 0).reduce((a, b) => a + b, 0) / 8;
       return { name: p.name ?? p.sessionId.slice(0, 6), primacy, middle, recency };
     });
   }
