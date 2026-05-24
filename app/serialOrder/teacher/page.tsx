@@ -604,9 +604,16 @@ export default function SerialOrderTeacher() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" domain={[0, 100]}
                         label={{ value: 'S2 Recall %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [`${Number(v).toFixed(0)}%`]}
-                        labelFormatter={() => ''} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: 8, padding: '8px 12px' }}>
+                            <p style={{ color: '#e5e7eb', fontWeight: 600, marginBottom: 4 }}>{d.name}</p>
+                            <p style={{ color: '#9ca3af', fontSize: 12 }}>S1: {d.x.toFixed(0)}% · S2: {d.y.toFixed(0)}%</p>
+                          </div>
+                        );
+                      }} />
                       {revealed && (
                         <>
                           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -632,8 +639,16 @@ export default function SerialOrderTeacher() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" domain={[0, 100]}
                         label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        labelFormatter={() => ''} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: 8, padding: '8px 12px' }}>
+                            <p style={{ color: '#e5e7eb', fontWeight: 600, marginBottom: 4 }}>{d.name}</p>
+                            <p style={{ color: '#9ca3af', fontSize: 12 }}>Questions: {d.x} · Accuracy: {d.y.toFixed(0)}%</p>
+                          </div>
+                        );
+                      }} />
                       {revealed && <Scatter data={arithmeticScatter} fill="#fbbf24" />}
                     </ScatterChart>
                   </ResponsiveContainer>
