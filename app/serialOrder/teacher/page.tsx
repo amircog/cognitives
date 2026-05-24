@@ -611,7 +611,7 @@ export default function SerialOrderTeacher() {
                         <>
                           <Scatter data={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
                             line={{ stroke: '#6b7280', strokeWidth: 1.5, strokeDasharray: '6 4' }}
-                            shape={(() => <></>) as unknown as React.ElementType}
+                            shape={() => null}
                             legendType="none" />
                           <Scatter data={recallScatter} fill="#34d399" />
                         </>
