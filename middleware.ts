@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const EXPERIMENT_SLUGS = new Set([
   'stroop', 'drm', 'bouba-kiki', 'mentalRep', 'summaryStats',
   'posnerCueing', 'visualSearch', 'CompositeFace', 'wordSuperiority',
-  'srt', 'twoStepTask', 'serialOrder',
+  'srt', 'twoStepTask', 'serialOrder', 'testingEffect',
 ]);
 
 export async function middleware(request: NextRequest) {
@@ -15,8 +15,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Teacher pages are never blocked — teacher should always have access
-  if (segments[segments.length - 1] === 'teacher') {
+  // Teacher/dashboard pages are never blocked
+  if (segments[segments.length - 1] === 'teacher' || segments[segments.length - 1] === 'dashboard') {
     return NextResponse.next();
   }
 
@@ -58,5 +58,6 @@ export const config = {
     '/visualSearch/:path*',    '/CompositeFace/:path*',
     '/wordSuperiority/:path*', '/srt/:path*',
     '/twoStepTask/:path*',     '/serialOrder/:path*',
+    '/testingEffect/:path*',
   ],
 };

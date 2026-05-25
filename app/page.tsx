@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type, Lock, LockOpen, Timer, GitFork, List } from 'lucide-react';
+import { Beaker, Brain, BrainCog, BarChart2, FlaskConical, Shapes, Target, Search, Users, Type, Lock, LockOpen, Timer, GitFork, List, BookOpen } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
@@ -28,6 +28,7 @@ const EXPERIMENTS: Exp[] = [
   { id: 'srt',             title: 'Serial Reaction Time',   titleHe: 'זמן תגובה סדרתי',    icon: Timer,     color: 'text-lime-400'    },
   { id: 'twoStepTask',     title: 'Two-Step Task',          titleHe: 'משימת שני השלבים',    icon: GitFork,   color: 'text-violet-400'  },
   { id: 'serialOrder',     title: 'Serial Position',        titleHe: 'זיכרון סדרתי',        icon: List,      color: 'text-sky-400'     },
+  { id: 'testingEffect',   title: 'Testing Effect',         titleHe: 'אפקט הבחינה',         icon: BookOpen,  color: 'text-blue-400'    },
 ];
 
 const CATEGORIES = [
@@ -36,7 +37,7 @@ const CATEGORIES = [
   { name: 'LANGUAGE',          nameHe: 'שפה',           ids: ['bouba-kiki'] },
   { name: 'EXECUTIVE CONTROL', nameHe: 'בקרה ניהולית', ids: ['stroop'] },
   { name: 'IMAGINATION',       nameHe: 'דמיון',         ids: ['mentalRep'] },
-  { name: 'MEMORY',            nameHe: 'זיכרון',        ids: ['drm', 'serialOrder'] },
+  { name: 'MEMORY',            nameHe: 'זיכרון',        ids: ['drm', 'serialOrder', 'testingEffect'] },
   { name: 'LEARNING',          nameHe: 'למידה',         ids: ['srt', 'twoStepTask'] },
   { name: 'CONSCIOUSNESS',     nameHe: 'תודעה',         ids: [] },
   { name: 'DECISION MAKING',   nameHe: 'קבלת החלטות',  ids: [] },
