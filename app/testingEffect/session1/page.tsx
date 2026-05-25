@@ -31,6 +31,7 @@ export default function Session1Page() {
   const [language, setLanguage] = useState<'en' | 'he'>('he');
   const [group, setGroup] = useState<CounterbalanceGroup>(1);
   const [sessionId, setSessionId] = useState('');
+  const [fromSerialOrder, setFromSerialOrder] = useState(false);
 
   // Study
   const [studyTrials, setStudyTrials] = useState<StudyTrial[]>([]);
@@ -72,6 +73,26 @@ export default function Session1Page() {
     practiceItemsRef.current = items;
     setPracticeTrials(shuffle(items));
   }, []);
+
+  // Auto-start when arriving from serialOrder (name already in sessionStorage)
+  useEffect(() => {
+    const soName = sessionStorage.getItem('so_participant_name');
+    if (!soName) return;
+    const soLang = sessionStorage.getItem('so_language') as 'en' | 'he' | null;
+    if (soLang) setLanguage(soLang);
+    setName(soName);
+    setFromSerialOrder(true);
+    const g = (Math.floor(Math.random() * 3) + 1) as CounterbalanceGroup;
+    const sid = crypto.randomUUID();
+    setGroup(g);
+    setSessionId(sid);
+    sessionStorage.setItem('te_name', soName);
+    sessionStorage.setItem('te_language', soLang || 'he');
+    sessionStorage.setItem('te_session_id', sid);
+    sessionStorage.setItem('te_group', String(g));
+    initTrials(g);
+    setStep('study-intro');
+  }, [initTrials]);
 
   const handleStart = () => {
     if (!name.trim()) return;
@@ -295,21 +316,27 @@ export default function Session1Page() {
 
   // ── Study Instructions ──
   if (step === 'study-intro') {
+    const accent = fromSerialOrder ? 'emerald' : 'orange';
+    const btnClass = fromSerialOrder
+      ? 'w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg'
+      : 'w-full py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg';
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4 py-8" dir={isHe ? 'rtl' : 'ltr'}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-6 max-w-md w-full">
-          <h2 className="text-xl font-bold text-white text-center">{t.studyIntroTitle}</h2>
+          {!fromSerialOrder && (
+            <h2 className="text-xl font-bold text-white text-center">{t.studyIntroTitle}</h2>
+          )}
           <ul className="flex flex-col gap-2">
             {t.studyIntro.map((line, i) => (
               <li key={i} className="flex gap-2 text-gray-300 text-sm leading-relaxed">
-                <span className="text-orange-400 font-bold mt-0.5">•</span>
+                <span className={`text-${accent}-400 font-bold mt-0.5`}>•</span>
                 <span>{line}</span>
               </li>
             ))}
           </ul>
           <button onPointerDown={e => { e.preventDefault(); setStep('study'); }}
-            className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg">
+            className={btnClass}>
             {t.begin}
           </button>
         </motion.div>
@@ -353,15 +380,21 @@ export default function Session1Page() {
 
   // ── Practice Instructions ──
   if (step === 'practice-intro') {
+    const accent = fromSerialOrder ? 'emerald' : 'orange';
+    const btnClass = fromSerialOrder
+      ? 'w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg'
+      : 'w-full py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg';
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4 py-8" dir={isHe ? 'rtl' : 'ltr'}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gray-900 border border-gray-700 rounded-2xl p-8 flex flex-col gap-6 max-w-md w-full">
-          <h2 className="text-xl font-bold text-white text-center">{t.practiceIntroTitle}</h2>
+          {!fromSerialOrder && (
+            <h2 className="text-xl font-bold text-white text-center">{t.practiceIntroTitle}</h2>
+          )}
           <ul className="flex flex-col gap-2">
             {t.practiceIntro.map((line, i) => (
               <li key={i} className="flex gap-2 text-gray-300 text-sm leading-relaxed">
-                <span className="text-orange-400 font-bold mt-0.5">•</span>
+                <span className={`text-${accent}-400 font-bold mt-0.5`}>•</span>
                 <span>{line}</span>
               </li>
             ))}
@@ -372,7 +405,7 @@ export default function Session1Page() {
             setPracticePhase(first?.trialType === 'restudy' ? 'display' : 'response');
             setStep('practice');
           }}
-            className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg">
+            className={btnClass}>
             {t.continue}
           </button>
         </motion.div>

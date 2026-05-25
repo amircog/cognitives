@@ -15,8 +15,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Teacher/dashboard pages are never blocked
-  if (segments[segments.length - 1] === 'teacher' || segments[segments.length - 1] === 'dashboard') {
+  // Teacher pages are never blocked — teacher should always have access
+  if (segments[segments.length - 1] === 'teacher') {
     return NextResponse.next();
   }
 

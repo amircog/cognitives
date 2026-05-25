@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle } from 'lucide-react';
 import { RecallResponse } from '@/types/serial-order';
 
 export default function SerialOrderThanks() {
+  const router = useRouter();
   const [results, setResults] = useState<RecallResponse[]>([]);
   const [language, setLanguage] = useState<'en' | 'he'>('he');
 
@@ -67,9 +69,12 @@ export default function SerialOrderThanks() {
           )}
         </div>
 
-        <p className="text-sm text-gray-500">
-          {isHe ? 'ניתן כעת לסגור את החלון' : 'You may now close this window'}
-        </p>
+        <button
+          onPointerDown={e => { e.preventDefault(); router.push('/testingEffect/session1'); }}
+          className="mt-2 px-10 py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg"
+        >
+          {isHe ? 'המשך' : 'Continue'}
+        </button>
       </motion.div>
     </main>
   );
