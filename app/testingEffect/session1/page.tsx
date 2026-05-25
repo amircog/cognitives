@@ -66,7 +66,7 @@ export default function Session1Page() {
       .flatMap(({ condition, pairs }) =>
         pairs.map(p => ({
           cue: p.cue, target: p.target, condition,
-          trialType: (condition === 'restudy' ? 'restudy' : 'retrieval') as const,
+          trialType: condition === 'restudy' ? 'restudy' as const : 'retrieval' as const,
         }))
       );
     practiceItemsRef.current = items;
