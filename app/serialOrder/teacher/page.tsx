@@ -8,6 +8,7 @@ import { RecallResponse, DistractorResult } from '@/types/serial-order';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis,
+  ErrorBar, ReferenceLine,
 } from 'recharts';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
@@ -155,20 +156,27 @@ export default function SerialOrderTeacher() {
     return set;
   }
 
+  function calcSem(values: number[]): number {
+    if (values.length < 2) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1);
+    return Math.sqrt(variance / values.length);
+  }
+
   // ── Serial position curve ─────────────────────────────────────────────────
   function computeSerialPositionCurve(sessionNum: 1 | 2) {
     const nWords = 20;
-    const positionCounts = Array(nWords).fill(0);
-    const nP = participants.length;
+    const participantRecalls: number[][] = [];
     participants.forEach(p => {
       const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
       const recalled = getRecalledPositions(recalls);
-      recalled.forEach(pos => { if (pos >= 1 && pos <= nWords) positionCounts[pos - 1]++; });
+      participantRecalls.push(Array.from({ length: nWords }, (_, i) => recalled.has(i + 1) ? 1 : 0));
     });
-    return positionCounts.map((count, i) => ({
-      position: i + 1,
-      probability: nP > 0 ? count / nP : 0,
-    }));
+    return Array.from({ length: nWords }, (_, i) => {
+      const values = participantRecalls.map(row => row[i]);
+      const mean = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      return { position: i + 1, probability: mean, sem: calcSem(values) };
+    });
   }
 
   // ── Per-participant thirds ────────────────────────────────────────────────
@@ -186,52 +194,50 @@ export default function SerialOrderTeacher() {
   }
 
   // ── Lag computation (for a given session) ─────────────────────────────────
-  function computeTransitions(sessionNum: 1 | 2) {
-    const transitions: { from: number; to: number }[] = [];
+  function computeLagDistribution(sessionNum: 1 | 2) {
+    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '0', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
+    const participantProps: Record<string, number>[] = [];
+
     participants.forEach(p => {
       const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
       const correctRecalls = recalls
         .filter(r => r.is_correct_recall && r.matched_serial_position !== null && !r.is_repetition)
         .sort((a, b) => a.output_position - b.output_position);
+      const lagCounts: Record<string, number> = {};
+      bins.forEach(b => { lagCounts[b] = 0; });
+      let total = 0;
+
       for (let i = 0; i < correctRecalls.length - 1; i++) {
-        transitions.push({
-          from: correctRecalls[i].matched_serial_position!,
-          to: correctRecalls[i + 1].matched_serial_position!,
-        });
+        const lag = correctRecalls[i + 1].matched_serial_position! - correctRecalls[i].matched_serial_position!;
+        if (lag === 0) continue;
+        total++;
+        if (lag <= -7) lagCounts['≤-7']++;
+        else if (lag >= 7) lagCounts['≥+7']++;
+        else {
+          const key = lag > 0 ? `+${lag}` : `${lag}`;
+          if (lagCounts[key] !== undefined) lagCounts[key]++;
+        }
       }
-    });
-    return transitions;
-  }
 
-  function computeLagDistribution(sessionNum: 1 | 2) {
-    const transitions = computeTransitions(sessionNum);
-    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
-    const lagCounts: Record<string, number> = {};
-    bins.forEach(b => { lagCounts[b] = 0; });
-    let total = 0;
-
-    transitions.forEach(({ from, to }) => {
-      const lag = to - from;
-      if (lag === 0) return;
-      total++;
-      if (lag <= -7) lagCounts['≤-7']++;
-      else if (lag >= 7) lagCounts['≥+7']++;
-      else {
-        const key = lag > 0 ? `+${lag}` : `${lag}`;
-        if (lagCounts[key] !== undefined) lagCounts[key]++;
+      if (total > 0) {
+        const props: Record<string, number> = {};
+        bins.forEach(b => { props[b] = lagCounts[b] / total; });
+        participantProps.push(props);
       }
     });
 
-    return bins.map(bin => ({
-      lag: bin,
-      proportion: total > 0 ? lagCounts[bin] / total : 0,
-    }));
+    return bins.map(bin => {
+      if (bin === '0') return { lag: bin, proportion: null as number | null, sem: null as number | null };
+      const values = participantProps.map(pp => pp[bin]);
+      const mean = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      return { lag: bin, proportion: mean, sem: calcSem(values) };
+    });
   }
 
   function computeLagCRP(sessionNum: 1 | 2) {
-    const actualByLag: Record<number, number> = {};
-    const possibleByLag: Record<number, number> = {};
     const nWords = 20;
+    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '0', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
+    const participantCRPs: Record<string, number>[] = [];
 
     participants.forEach(p => {
       const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
@@ -239,7 +245,11 @@ export default function SerialOrderTeacher() {
         .filter(r => r.is_correct_recall && r.matched_serial_position !== null && !r.is_repetition)
         .sort((a, b) => a.output_position - b.output_position);
       const recalledPositions = correctRecalls.map(r => r.matched_serial_position!);
+      if (recalledPositions.length < 2) return;
       const allPositions = new Set(Array.from({ length: nWords }, (_, i) => i + 1));
+
+      const actualByLag: Record<number, number> = {};
+      const possibleByLag: Record<number, number> = {};
 
       for (let i = 0; i < recalledPositions.length - 1; i++) {
         const currentPos = recalledPositions[i];
@@ -258,23 +268,32 @@ export default function SerialOrderTeacher() {
           possibleByLag[possibleLag]++;
         });
       }
+
+      const crps: Record<string, number> = {};
+      bins.forEach(bin => {
+        if (bin === '0') { crps[bin] = 0; return; }
+        let actual = 0, possible = 0;
+        if (bin === '≤-7') {
+          for (const l in actualByLag) if (parseInt(l) <= -7) actual += actualByLag[l];
+          for (const l in possibleByLag) if (parseInt(l) <= -7) possible += possibleByLag[l];
+        } else if (bin === '≥+7') {
+          for (const l in actualByLag) if (parseInt(l) >= 7) actual += actualByLag[l];
+          for (const l in possibleByLag) if (parseInt(l) >= 7) possible += possibleByLag[l];
+        } else {
+          const lagNum = parseInt(bin);
+          actual = actualByLag[lagNum] ?? 0;
+          possible = possibleByLag[lagNum] ?? 0;
+        }
+        crps[bin] = possible > 0 ? actual / possible : 0;
+      });
+      participantCRPs.push(crps);
     });
 
-    const bins = ['≤-7', '-6', '-5', '-4', '-3', '-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '≥+7'];
     return bins.map(bin => {
-      let actual = 0, possible = 0;
-      if (bin === '≤-7') {
-        for (const lag in actualByLag) if (parseInt(lag) <= -7) actual += actualByLag[lag];
-        for (const lag in possibleByLag) if (parseInt(lag) <= -7) possible += possibleByLag[lag];
-      } else if (bin === '≥+7') {
-        for (const lag in actualByLag) if (parseInt(lag) >= 7) actual += actualByLag[lag];
-        for (const lag in possibleByLag) if (parseInt(lag) >= 7) possible += possibleByLag[lag];
-      } else {
-        const lagNum = parseInt(bin);
-        actual = actualByLag[lagNum] ?? 0;
-        possible = possibleByLag[lagNum] ?? 0;
-      }
-      return { lag: bin, crp: possible > 0 ? actual / possible : 0 };
+      if (bin === '0') return { lag: bin, crp: null as number | null, sem: null as number | null };
+      const values = participantCRPs.map(pp => pp[bin]);
+      const mean = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      return { lag: bin, crp: mean, sem: calcSem(values) };
     });
   }
 
@@ -394,8 +413,8 @@ export default function SerialOrderTeacher() {
   const arithmeticScatter = computeArithmeticScatter();
 
   // Merge lag data for dual-line charts
-  const lagCombined = lagS1.map((d, i) => ({ lag: d.lag, session1: d.proportion, session2: lagS2[i].proportion }));
-  const lagCRPCombined = lagCRPS1.map((d, i) => ({ lag: d.lag, session1: d.crp, session2: lagCRPS2[i].crp }));
+  const lagCombined = lagS1.map((d, i) => ({ lag: d.lag, session1: d.proportion, session2: lagS2[i].proportion, sem1: d.sem, sem2: lagS2[i].sem }));
+  const lagCRPCombined = lagCRPS1.map((d, i) => ({ lag: d.lag, session1: d.crp, session2: lagCRPS2[i].crp, sem1: d.sem, sem2: lagCRPS2[i].sem }));
 
   return (
     <main className="min-h-screen p-8">
@@ -468,7 +487,11 @@ export default function SerialOrderTeacher() {
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
                         formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
-                      {revealed && <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5} dot={{ fill: '#34d399', r: 3 }} />}
+                      {revealed && (
+                        <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5} dot={{ fill: '#34d399', r: 3 }}>
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#34d399" direction="y" />
+                        </Line>
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -513,7 +536,11 @@ export default function SerialOrderTeacher() {
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
                         formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
-                      {revealed && <Line type="monotone" dataKey="probability" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: '#60a5fa', r: 3 }} />}
+                      {revealed && (
+                        <Line type="monotone" dataKey="probability" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: '#60a5fa', r: 3 }}>
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#60a5fa" direction="y" />
+                        </Line>
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -556,12 +583,17 @@ export default function SerialOrderTeacher() {
                       <XAxis dataKey="lag" stroke="#9ca3af" label={{ value: 'Lag', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
                       <YAxis stroke="#9ca3af" label={{ value: 'Proportion', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [Number(v).toFixed(3)]} />
+                        formatter={(v) => v != null ? [Number(v).toFixed(3)] : ['']} />
                       <Legend verticalAlign="top" />
+                      <ReferenceLine x="0" stroke="#6b7280" strokeDasharray="4 4" />
                       {revealed && (
                         <>
-                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" />
-                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" />
+                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" connectNulls={false}>
+                            <ErrorBar dataKey="sem1" width={4} strokeWidth={1.5} stroke="#34d399" direction="y" />
+                          </Line>
+                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" connectNulls={false}>
+                            <ErrorBar dataKey="sem2" width={4} strokeWidth={1.5} stroke="#60a5fa" direction="y" />
+                          </Line>
                         </>
                       )}
                     </LineChart>
@@ -577,12 +609,17 @@ export default function SerialOrderTeacher() {
                       <XAxis dataKey="lag" stroke="#9ca3af" label={{ value: 'Lag', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
                       <YAxis stroke="#9ca3af" domain={[0, 'auto']} label={{ value: 'CRP', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [Number(v).toFixed(3)]} />
+                        formatter={(v) => v != null ? [Number(v).toFixed(3)] : ['']} />
                       <Legend verticalAlign="top" />
+                      <ReferenceLine x="0" stroke="#6b7280" strokeDasharray="4 4" />
                       {revealed && (
                         <>
-                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" />
-                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" />
+                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="S1 (delayed)" connectNulls={false}>
+                            <ErrorBar dataKey="sem1" width={4} strokeWidth={1.5} stroke="#34d399" direction="y" />
+                          </Line>
+                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="S2 (immediate)" connectNulls={false}>
+                            <ErrorBar dataKey="sem2" width={4} strokeWidth={1.5} stroke="#60a5fa" direction="y" />
+                          </Line>
                         </>
                       )}
                     </LineChart>
