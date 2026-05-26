@@ -49,7 +49,7 @@ export default function SerialOrderThanks() {
 
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-6" dir={isHe ? 'rtl' : 'ltr'}>
           <p className="text-lg mb-4 text-gray-200">
-            {isHe ? 'סיימת את משימת הזיכרון הסדרתי!' : 'You completed the serial order memory task!'}
+            {isHe ? 'כעת נעבור למשימת למידה מורכבת יותר.' : 'Now for a more complex learning task.'}
           </p>
           {results.length > 0 && (
             <div className="grid grid-cols-2 gap-4 mt-4">

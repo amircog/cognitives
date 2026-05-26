@@ -71,9 +71,6 @@ export default function ThanksPage() {
           {session === '2' ? t.thanks2 : t.thanks1}
         </h1>
 
-        {session === '1' && (
-          <p className="text-gray-300 text-lg">{t.done1}</p>
-        )}
 
         {session === '2' && chartData && (
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full">
