@@ -181,8 +181,6 @@ export default function SerialOrderTeacher() {
 
   // ── Per-participant thirds ────────────────────────────────────────────────
   function computeParticipantThirds(sessionNum: 1 | 2) {
-    const nWords = 20;
-    const thirdSize = Math.ceil(nWords / 3);
     return participants.map(p => {
       const recalls = sessionNum === 1 ? p.recallsS1 : p.recallsS2;
       const recalled = getRecalledPositions(recalls);
@@ -412,6 +410,25 @@ export default function SerialOrderTeacher() {
   const recallScatter = computeRecallScatter();
   const arithmeticScatter = computeArithmeticScatter();
 
+  // Merge serial position curves for dual-line chart
+  const spcCombined = spcS1.map((d, i) => ({
+    position: d.position,
+    session1: d.probability, session2: spcS2[i].probability,
+    sem1: d.sem, sem2: spcS2[i].sem,
+  }));
+
+  // Aggregated thirds with SEM
+  const thirdsCombined = ([
+    { label: 'Primacy (1-7)', key: 'primacy' as const },
+    { label: 'Middle (8-13)', key: 'middle' as const },
+    { label: 'Recency (14-20)', key: 'recency' as const },
+  ]).map(({ label, key }) => {
+    const s1Vals = thirdsS1.map(p => p[key]);
+    const s2Vals = thirdsS2.map(p => p[key]);
+    const mean = (a: number[]) => a.length > 0 ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    return { third: label, session1: mean(s1Vals), session2: mean(s2Vals), sem1: calcSem(s1Vals), sem2: calcSem(s2Vals) };
+  });
+
   // Merge lag data for dual-line charts
   const lagCombined = lagS1.map((d, i) => ({ lag: d.lag, session1: d.proportion, session2: lagS2[i].proportion, sem1: d.sem, sem2: lagS2[i].sem }));
   const lagCRPCombined = lagCRPS1.map((d, i) => ({ lag: d.lag, session1: d.crp, session2: lagCRPS2[i].crp, sem1: d.sem, sem2: lagCRPS2[i].sem }));
@@ -474,30 +491,70 @@ export default function SerialOrderTeacher() {
               </div>
             </div>
 
-            {/* Row 1: Session 1 serial position + thirds */}
-            <h2 className="text-lg font-bold text-gray-300 mb-3">Session 1 — Delayed Recall (2.5 min distractor)</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <ChartCard title="Serial Position Curve (S1)">
+            {/* Row 1: Combined Serial Position Curve (full width) */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Serial Position Curve</h2>
+            <div className="mb-8">
+              <ChartCard title="P(Recall) by Serial Position (± SEM)">
                 {(revealed) => (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={spcS1} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={spcCombined} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="position" stroke="#9ca3af" label={{ value: 'Serial Position', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
                       <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
                         label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                       <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`]} />
+                      <Legend verticalAlign="top" />
                       {revealed && (
-                        <Line type="monotone" dataKey="probability" stroke="#34d399" strokeWidth={2.5} dot={{ fill: '#34d399', r: 3 }}>
-                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#34d399" direction="y" />
-                        </Line>
+                        <>
+                          <Line type="monotone" dataKey="session1" stroke="#34d399" strokeWidth={2.5} dot={{ fill: '#34d399', r: 3 }} name="S1 (delayed)">
+                            <ErrorBar dataKey="sem1" width={4} strokeWidth={1.5} stroke="#34d399" direction="y" />
+                          </Line>
+                          <Line type="monotone" dataKey="session2" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: '#60a5fa', r: 3 }} name="S2 (immediate)">
+                            <ErrorBar dataKey="sem2" width={4} strokeWidth={1.5} stroke="#60a5fa" direction="y" />
+                          </Line>
+                        </>
                       )}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
               </ChartCard>
+            </div>
 
-              <ChartCard title="Per-Participant Thirds (S1)">
+            {/* Row 2: Aggregated thirds (mean ± SEM, both sessions) */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Recall by Position Third</h2>
+            <div className="mb-8">
+              <ChartCard title="Mean Recall by Third (± SEM)">
+                {(revealed) => (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={thirdsCombined} margin={{ top: 10, right: 20, left: 10, bottom: 10 }} barCategoryGap="25%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="third" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
+                        label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`]} />
+                      <Legend verticalAlign="top" />
+                      {revealed && (
+                        <>
+                          <Bar dataKey="session1" fill="#34d399" name="S1 (delayed)" radius={[4, 4, 0, 0]}>
+                            <ErrorBar dataKey="sem1" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                          </Bar>
+                          <Bar dataKey="session2" fill="#60a5fa" name="S2 (immediate)" radius={[4, 4, 0, 0]}>
+                            <ErrorBar dataKey="sem2" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                          </Bar>
+                        </>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
+
+            {/* Row 3: Per-participant thirds side by side */}
+            <h2 className="text-lg font-bold text-gray-300 mb-3">Per-Participant Thirds</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <ChartCard title="Per-Participant Thirds (S1 — delayed)">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={260}>
                     <LineChart
@@ -521,32 +578,8 @@ export default function SerialOrderTeacher() {
                   </ResponsiveContainer>
                 )}
               </ChartCard>
-            </div>
 
-            {/* Row 2: Session 2 serial position + thirds */}
-            <h2 className="text-lg font-bold text-gray-300 mb-3">Session 2 — Immediate Recall (no distractor)</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <ChartCard title="Serial Position Curve (S2)">
-                {(revealed) => (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={spcS2} margin={{ top: 10, right: 20, left: 10, bottom: 30 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="position" stroke="#9ca3af" label={{ value: 'Serial Position', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
-                      <YAxis stroke="#9ca3af" domain={[0, 1]} tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
-                        label={{ value: 'P(Recall)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                        formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Recall']} />
-                      {revealed && (
-                        <Line type="monotone" dataKey="probability" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: '#60a5fa', r: 3 }}>
-                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#60a5fa" direction="y" />
-                        </Line>
-                      )}
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </ChartCard>
-
-              <ChartCard title="Per-Participant Thirds (S2)">
+              <ChartCard title="Per-Participant Thirds (S2 — immediate)">
                 {(revealed) => (
                   <ResponsiveContainer width="100%" height={260}>
                     <LineChart
@@ -572,7 +605,7 @@ export default function SerialOrderTeacher() {
               </ChartCard>
             </div>
 
-            {/* Row 3: Lag plots with both sessions */}
+            {/* Row 4: Lag plots with both sessions */}
             <h2 className="text-lg font-bold text-gray-300 mb-3">Temporal Contiguity</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <ChartCard title="Lag Transition (Simple Proportion)">
@@ -628,7 +661,7 @@ export default function SerialOrderTeacher() {
               </ChartCard>
             </div>
 
-            {/* Row 4: Scatter plots */}
+            {/* Row 6: Scatter plots */}
             <h2 className="text-lg font-bold text-gray-300 mb-3">Individual Differences</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <ChartCard title="Recall: Session 1 vs Session 2">
