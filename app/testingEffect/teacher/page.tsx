@@ -43,6 +43,7 @@ interface DashboardData {
   chart2: BarPoint[];      // Session 2 RT by condition
   chart3: BarPoint[];      // Session 1 practice accuracy by round (retrieval only)
   chart4: ScatterPoint[];  // Retrieval vs Restudy accuracy scatter
+  chart5: BarPoint[];      // Conditional recall: P(S2 correct | S1 practice outcome)
   nSession1: number;
   nSession2: number;
 }
@@ -101,8 +102,50 @@ function computeData(rows: TrialResult[]): DashboardData {
     x: round1(p.restudyAcc), y: round1(p.retrievalAcc), name: p.name,
   }));
 
+  // Chart 5: Conditional recall — P(S2 correct | S1 practice outcome)
+  // Link S1 and S2 data by participant_name + cue
+  const byName: Record<string, TrialResult[]> = {};
+  for (const r of rows) (byName[r.participant_name ?? ''] ??= []).push(r);
+
+  const condRetHitVals: number[] = [];
+  const condRetMissVals: number[] = [];
+  const condRestudyVals: number[] = [];
+  const condBaselineVals: number[] = [];
+
+  for (const [, pRows] of Object.entries(byName)) {
+    const s2 = pRows.filter(r => r.session_number === 2);
+    if (s2.length === 0) continue;
+    const s2ByCue: Record<string, TrialResult> = {};
+    for (const r of s2) s2ByCue[r.cue] = r;
+
+    // Retrieval items: S1 round 2 outcome → S2 accuracy
+    const s1RetR2 = pRows.filter(r => r.session_number === 1 && r.trial_type === 'retrieval' && r.practice_round === 2);
+    let hitN = 0, hitCorrect = 0, missN = 0, missCorrect = 0;
+    for (const r1 of s1RetR2) {
+      const s2t = s2ByCue[r1.cue];
+      if (!s2t) continue;
+      if (r1.is_correct) { hitN++; if (s2t.is_correct) hitCorrect++; }
+      else { missN++; if (s2t.is_correct) missCorrect++; }
+    }
+    if (hitN > 0) condRetHitVals.push((hitCorrect / hitN) * 100);
+    if (missN > 0) condRetMissVals.push((missCorrect / missN) * 100);
+
+    // Restudy & baseline: just S2 accuracy
+    const restudyS2 = s2.filter(r => r.condition === 'restudy');
+    if (restudyS2.length > 0) condRestudyVals.push((restudyS2.filter(r => r.is_correct).length / restudyS2.length) * 100);
+    const baselineS2 = s2.filter(r => r.condition === 'baseline');
+    if (baselineS2.length > 0) condBaselineVals.push((baselineS2.filter(r => r.is_correct).length / baselineS2.length) * 100);
+  }
+
+  const chart5: BarPoint[] = [
+    { name: 'Baseline', value: round1(mean(condBaselineVals)), sem: round1(sem(condBaselineVals)) },
+    { name: 'Restudy', value: round1(mean(condRestudyVals)), sem: round1(sem(condRestudyVals)) },
+    { name: 'Retr. (S1 miss)', value: round1(mean(condRetMissVals)), sem: round1(sem(condRetMissVals)) },
+    { name: 'Retr. (S1 hit)', value: round1(mean(condRetHitVals)), sem: round1(sem(condRetHitVals)) },
+  ];
+
   return {
-    chart1, chart2, chart3, chart4,
+    chart1, chart2, chart3, chart4, chart5,
     nSession1: Object.keys(s1BySession).length,
     nSession2: s2Stats.length,
   };
@@ -375,6 +418,27 @@ export default function DashboardPage() {
                   </ScatterChart>
                 </ResponsiveContainer>
               )}
+            </ChartCard>
+
+            {/* Chart 5 — Conditional Recall: P(S2 correct | S1 practice outcome) */}
+            <ChartCard
+              title="Delayed Recall Given Immediate Practice Outcome"
+              subtitle="S2 accuracy split by S1 retrieval success. Restudy/baseline shown for comparison. Error bars = SEM."
+              revealed={!!revealed[5]} onReveal={() => reveal(5)}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={data.chart5} margin={{ left: 10, bottom: 5 }} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="name" tick={TICK} />
+                  <YAxis domain={[0, 100]} tick={TICK}
+                    label={{ value: 'S2 Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
+                  <Tooltip contentStyle={BG} formatter={pctFmt} />
+                  {revealed[5] && (
+                    <Bar dataKey="value" name="Accuracy" fill="#f97316" radius={[4, 4, 0, 0]}>
+                      <ErrorBar dataKey="sem" width={4} strokeWidth={2} stroke="#c2410c" direction="y" />
+                    </Bar>
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
             </ChartCard>
 
           </div>
