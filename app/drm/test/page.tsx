@@ -9,8 +9,8 @@ import { getSupabase } from '@/lib/supabase';
 
 const KEY = 'drm';
 
-const CONFIDENCE_LABELS_HE = ['בטוחה שחדש', 'כנראה חדש', 'כנראה ישן', 'בטוחה שישן'];
-const CONFIDENCE_LABELS_EN = ['Sure new', 'Probably new', 'Probably old', 'Sure old'];
+const LABELS_HE = ['בטוחה שלא', 'חושבת שלא', 'חושבת שכן', 'בטוחה שכן'] as const;
+const LABELS_EN = ['Sure no', 'Think no', 'Think yes', 'Sure yes'] as const;
 
 export default function DRMTestPage() {
   const router = useRouter();
@@ -21,8 +21,6 @@ export default function DRMTestPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [responses, setResponses] = useState<TestResponse[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [awaitingConfidence, setAwaitingConfidence] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState<'old' | 'new' | null>(null);
   const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
@@ -39,37 +37,30 @@ export default function DRMTestPage() {
     startTimeRef.current = Date.now();
   }, [router]);
 
-  const handleResponse = (response: 'old' | 'new') => {
-    if (currentIndex >= testItems.length || awaitingConfidence) return;
-    setCurrentResponse(response);
-    setAwaitingConfidence(true);
-  };
-
-  const handleConfidence = async (confidence: 1 | 2 | 3 | 4) => {
-    if (!currentResponse || currentIndex >= testItems.length) return;
+  const handleResponse = async (rating: 1 | 2 | 3 | 4) => {
+    if (currentIndex >= testItems.length) return;
 
     const reactionTime = Date.now() - startTimeRef.current;
     const currentItem = testItems[currentIndex];
+    const response: 'old' | 'new' = rating >= 3 ? 'old' : 'new';
 
     const isCorrect =
-      (currentItem.itemType === 'studied' && currentResponse === 'old') ||
-      (currentItem.itemType !== 'studied' && currentResponse === 'new');
+      (currentItem.itemType === 'studied' && response === 'old') ||
+      (currentItem.itemType !== 'studied' && response === 'new');
 
     const testResponse: TestResponse = {
       word: currentItem.word,
       itemType: currentItem.itemType,
       listTheme: currentItem.listTheme,
-      response: currentResponse,
+      response,
       isCorrect,
       reactionTimeMs: reactionTime,
       serialPosition: currentItem.serialPosition,
-      confidence,
+      confidence: rating,
     };
 
     const newResponses = [...responses, testResponse];
     setResponses(newResponses);
-    setAwaitingConfidence(false);
-    setCurrentResponse(null);
 
     if (currentIndex + 1 >= testItems.length) {
       await saveResponses(newResponses);
@@ -127,7 +118,13 @@ export default function DRMTestPage() {
 
   const currentItem = testItems[currentIndex];
   const progress = ((currentIndex + 1) / testItems.length) * 100;
-  const confLabels = he ? CONFIDENCE_LABELS_HE : CONFIDENCE_LABELS_EN;
+  const labels = he ? LABELS_HE : LABELS_EN;
+  const colors = [
+    'bg-zinc-700 hover:bg-zinc-600 text-foreground',
+    'bg-zinc-600 hover:bg-zinc-500 text-foreground',
+    'bg-emerald-600 hover:bg-emerald-500 text-white',
+    'bg-emerald-400 hover:bg-emerald-300 text-zinc-900',
+  ];
 
   return (
     <main style={{ height: '100dvh' }} className="flex flex-col p-8">
@@ -146,62 +143,33 @@ export default function DRMTestPage() {
 
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-2xl w-full">
-          {!awaitingConfidence ? (
-            <>
-              <p className="text-lg text-muted mb-4" dir={he ? 'rtl' : 'ltr'}>
-                {he ? 'האם המילה הזאת הוצגה באחת הרשימות?' : 'Was this word presented in one of the lists?'}
-              </p>
+          <p className="text-lg text-muted mb-4" dir={he ? 'rtl' : 'ltr'}>
+            {he ? 'האם המילה הזאת הופיעה באחת הרשימות?' : 'Did this word appear in one of the lists?'}
+          </p>
 
-              <motion.div
-                key={currentIndex}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-5xl md:text-7xl font-bold text-emerald-400 my-12"
-                style={{ fontFamily: 'monospace' }}
+          <motion.div
+            key={currentIndex}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-5xl md:text-7xl font-bold text-emerald-400 my-12"
+            style={{ fontFamily: 'monospace' }}
+          >
+            {currentItem.word}
+          </motion.div>
+
+          <div className="flex gap-3 justify-center flex-wrap" dir={he ? 'rtl' : 'ltr'}>
+            {([1, 2, 3, 4] as const).map((rating) => (
+              <button
+                key={rating}
+                onClick={() => handleResponse(rating)}
+                disabled={isSaving}
+                className={`px-6 py-4 font-bold text-base rounded-xl shadow-lg transition-colors
+                           disabled:opacity-50 touch-manipulation min-w-[120px] ${colors[rating - 1]}`}
               >
-                {currentItem.word}
-              </motion.div>
-
-              <div className="flex gap-4 justify-center" dir={he ? 'rtl' : 'ltr'}>
-                <button
-                  onClick={() => handleResponse('old')}
-                  disabled={isSaving}
-                  className="px-12 py-6 bg-emerald-400 text-zinc-900 font-bold text-xl rounded-xl
-                             shadow-lg hover:bg-emerald-300 transition-colors disabled:opacity-50 touch-manipulation"
-                >
-                  {he ? 'כן, ראיתי' : 'Yes (OLD)'}
-                </button>
-                <button
-                  onClick={() => handleResponse('new')}
-                  disabled={isSaving}
-                  className="px-12 py-6 bg-zinc-700 text-foreground font-bold text-xl rounded-xl
-                             shadow-lg hover:bg-zinc-600 transition-colors disabled:opacity-50 touch-manipulation"
-                >
-                  {he ? 'לא, לא ראיתי' : 'No (NEW)'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="my-8">
-              <p className="text-2xl font-bold text-emerald-400 mb-6" dir={he ? 'rtl' : 'ltr'}>
-                {he ? 'עד כמה את בטוחה בתשובה?' : 'How confident are you?'}
-              </p>
-              <div className="flex gap-3 justify-center flex-wrap">
-                {([1, 2, 3, 4] as const).map((conf) => (
-                  <button
-                    key={conf}
-                    onClick={() => handleConfidence(conf)}
-                    className="flex flex-col items-center gap-1 px-4 py-3 bg-emerald-400 text-zinc-900
-                               font-bold rounded-xl shadow-lg hover:bg-emerald-300 transition-colors
-                               touch-manipulation min-w-[80px]"
-                  >
-                    <span className="text-2xl">{conf}</span>
-                    <span className="text-[10px] font-normal leading-tight">{confLabels[conf - 1]}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
+                {labels[rating - 1]}
+              </button>
+            ))}
+          </div>
 
           {isSaving && (
             <p className="text-muted mt-8">{he ? 'שומרת תוצאות...' : 'Saving results...'}</p>

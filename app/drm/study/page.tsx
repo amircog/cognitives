@@ -63,7 +63,7 @@ export default function DRMStudyPage() {
     setParticipantName(name);
     if (l) setLang(l);
 
-    const order = shuffleArray([0, 1, 2, 3, 4, 5]);
+    const order = shuffleArray([...Array(WORD_LISTS.length).keys()]);
     setListOrder(order);
     sessionStorage.setItem(`${KEY}_list_order`, JSON.stringify(order));
   }, [router]);

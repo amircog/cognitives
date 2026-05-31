@@ -97,7 +97,7 @@ export default function DRMPracticePage() {
                     : 'You will now see a short list of 3 practice words. After that — a brief math task, then free recall.'}
                 </p>
                 <p className="text-muted">
-                  {he ? 'בניסוי יהיו 6 רשימות של 12 מילים כל אחת.' : 'The experiment has 6 lists of 12 words each.'}
+                  {he ? 'בניסוי יהיו 5 רשימות של 10 מילים כל אחת.' : 'The experiment has 5 lists of 10 words each.'}
                 </p>
               </div>
               <motion.button
@@ -224,8 +224,8 @@ export default function DRMPracticePage() {
               <div className="bg-card border border-border rounded-xl p-6 mb-6" dir={he ? 'rtl' : 'ltr'}>
                 <p className="text-muted">
                   {he
-                    ? 'בניסוי תראי 6 רשימות של 12 מילים. אחרי כל רשימה — משימת חשבון (30 שניות) ואז שחזור חופשי (90 שניות). בסוף — מבחן זיהוי.'
-                    : 'The experiment has 6 lists of 12 words. After each — a math task (30s) then free recall (90s). Finally — a recognition test.'}
+                    ? 'בניסוי תראי 5 רשימות של 10 מילים. אחרי כל רשימה — משימת חשבון (30 שניות) ואז שחזור חופשי (90 שניות). בסוף — מבחן זיהוי.'
+                    : 'The experiment has 5 lists of 10 words. After each — a math task (30s) then free recall (90s). Finally — a recognition test.'}
                 </p>
               </div>
               <motion.button

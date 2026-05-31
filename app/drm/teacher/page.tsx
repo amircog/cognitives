@@ -207,7 +207,7 @@ export default function DRMTeacherDashboard() {
     const sessions = Array.from(new Set(displayRows.map(r => r.session_id)));
     const studied = displayRows.filter(r => r.item_type === 'studied');
 
-    return Array.from({ length: 12 }, (_, i) => {
+    return Array.from({ length: 10 }, (_, i) => {
       const pos = i + 1;
       const perParticipant = sessions.map(sid => {
         const items = studied.filter(r => r.session_id === sid && r.serial_position === pos);
@@ -247,7 +247,7 @@ export default function DRMTeacherDashboard() {
 
     const perParticipantCorrect = sessions.map(sid => {
       const rows = filteredRecall.filter(r => r.session_id === sid);
-      return rows.length > 0 ? mean(rows.map(r => (r.correct_count / 12) * 100)) : 0;
+      return rows.length > 0 ? mean(rows.map(r => (r.correct_count / 10) * 100)) : 0;
     });
     const perParticipantLure = sessions.map(sid => {
       const rows = filteredRecall.filter(r => r.session_id === sid);
@@ -505,7 +505,7 @@ export default function DRMTeacherDashboard() {
               {(revealed) => (
                 <div>
                   <p className="text-xs text-muted mb-4">
-                    Hit rate by position in the original study list (1–12). Shows primacy and recency effects.
+                    Hit rate by position in the original study list (1–10). Shows primacy and recency effects.
                   </p>
                   <ResponsiveContainer width="100%" height={320}>
                     <LineChart data={serialChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>

@@ -142,7 +142,7 @@ export default function DRMHomePage() {
         </motion.button>
 
         <p className="mt-6 text-sm text-muted" dir={he ? 'rtl' : 'ltr'}>
-          {he ? 'למידה + שחזור (~15 דקות) + זיהוי (~5 דקות)' : 'Study + Recall (~15 min) + Recognition (~5 min)'}
+          {he ? 'למידה + שחזור (~12 דקות) + זיהוי (~3 דקות)' : 'Study + Recall (~12 min) + Recognition (~3 min)'}
         </p>
       </motion.div>
     </main>

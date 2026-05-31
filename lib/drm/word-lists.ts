@@ -6,8 +6,7 @@ export const WORD_LISTS: WordList[] = [
     criticalLure: 'sleep',
     studyWords: [
       'bed', 'rest', 'awake', 'tired', 'dream',
-      'wake', 'snooze', 'blanket', 'doze', 'slumber',
-      'snore', 'nap',
+      'wake', 'snore', 'nap', 'pillow', 'yawn',
     ],
   },
   {
@@ -15,17 +14,7 @@ export const WORD_LISTS: WordList[] = [
     criticalLure: 'chair',
     studyWords: [
       'table', 'sit', 'legs', 'seat', 'couch',
-      'desk', 'recliner', 'sofa', 'wood', 'cushion',
-      'swivel', 'stool',
-    ],
-  },
-  {
-    theme: 'MOUNTAIN',
-    criticalLure: 'mountain',
-    studyWords: [
-      'hill', 'valley', 'climb', 'summit', 'top',
-      'molehill', 'peak', 'plain', 'glacier', 'goat',
-      'bike', 'climber',
+      'desk', 'sofa', 'wood', 'bench', 'stool',
     ],
   },
   {
@@ -33,17 +22,7 @@ export const WORD_LISTS: WordList[] = [
     criticalLure: 'needle',
     studyWords: [
       'thread', 'pin', 'eye', 'sewing', 'sharp',
-      'point', 'prick', 'thimble', 'haystack', 'thorn',
-      'hurt', 'injection',
-    ],
-  },
-  {
-    theme: 'ROUGH',
-    criticalLure: 'rough',
-    studyWords: [
-      'smooth', 'bumpy', 'road', 'tough', 'sandpaper',
-      'jagged', 'ready', 'coarse', 'uneven', 'riders',
-      'rugged', 'sand',
+      'point', 'hurt', 'injection', 'hole', 'knit',
     ],
   },
   {
@@ -51,19 +30,28 @@ export const WORD_LISTS: WordList[] = [
     criticalLure: 'sweet',
     studyWords: [
       'sour', 'candy', 'sugar', 'bitter', 'good',
-      'taste', 'tooth', 'nice', 'honey', 'soda',
-      'chocolate', 'heart',
+      'taste', 'honey', 'cake', 'nice', 'pie',
+    ],
+  },
+  {
+    theme: 'ROUGH',
+    criticalLure: 'rough',
+    studyWords: [
+      'smooth', 'bumpy', 'road', 'tough', 'hard',
+      'sand', 'flat', 'stone', 'ground', 'rocky',
     ],
   },
 ];
 
 export const UNRELATED_FOILS = [
-  'lamp', 'river', 'pencil', 'garden', 'bottle', 'music',
-  'cloud', 'engine', 'silver', 'ocean', 'rabbit', 'camera',
-  'flower', 'bridge', 'clock', 'paper', 'village', 'candle',
-  'mirror', 'planet', 'kitchen', 'wallet', 'island', 'hammer',
+  'lamp', 'river', 'pencil', 'garden', 'bottle',
+  'music', 'cloud', 'silver', 'ocean', 'rabbit',
+  'camera', 'flower', 'bridge', 'clock', 'paper',
+  'candle', 'mirror', 'planet', 'kitchen', 'wallet',
+  'island', 'hammer', 'window', 'bird', 'train',
 ];
 
+export const WORDS_PER_LIST = 10;
 export const WORD_DISPLAY_MS = 2000;
 export const ISI_MS = 250;
 export const LIST_INTRO_MS = 2000;
@@ -83,16 +71,23 @@ export function getStudyWordsForList(listIndex: number): StudyTrial[] {
 export function getTestItems(): TestItem[] {
   const items: TestItem[] = [];
 
-  WORD_LISTS.forEach((list) => {
-    list.studyWords.forEach((word, i) => {
+  // 20 studied words: 2 per serial position (each from a different list)
+  for (let pos = 1; pos <= WORDS_PER_LIST; pos++) {
+    const listIndices = shuffleArray([...Array(WORD_LISTS.length).keys()]);
+    const picked = listIndices.slice(0, 2);
+    for (const li of picked) {
+      const list = WORD_LISTS[li];
       items.push({
-        word,
+        word: list.studyWords[pos - 1],
         itemType: 'studied',
         listTheme: list.theme,
-        serialPosition: i + 1,
+        serialPosition: pos,
       });
-    });
+    }
+  }
 
+  // 5 critical lures (one per list)
+  WORD_LISTS.forEach((list) => {
     items.push({
       word: list.criticalLure,
       itemType: 'critical_lure',
@@ -100,6 +95,7 @@ export function getTestItems(): TestItem[] {
     });
   });
 
+  // 25 unrelated foils
   UNRELATED_FOILS.forEach((word) => {
     items.push({
       word,
