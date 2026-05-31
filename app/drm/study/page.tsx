@@ -170,6 +170,8 @@ export default function DRMStudyPage() {
           correct_count: scores.correctCount,
           intrusion_count: scores.intrusionCount,
           prior_list_intrusion_count: scores.priorListIntrusionCount,
+          distractor_correct: distractorCorrect,
+          distractor_total: distractorTotal,
         });
       }
     } catch (err) {

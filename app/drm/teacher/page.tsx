@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ErrorBar, LineChart, Line, Cell,
+  ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -259,6 +260,56 @@ export default function DRMTeacherDashboard() {
     ];
   };
 
+  const computeRecallVsRecognitionScatter = () => {
+    const filteredRecall = excludeSubs
+      ? recallData.filter(r => !excludedIds.has(r.session_id))
+      : recallData;
+    const recallSessions = Array.from(new Set(filteredRecall.map(r => r.session_id)));
+    const recogSessions = new Set(displayRows.map(r => r.session_id));
+
+    return recallSessions
+      .filter(sid => recogSessions.has(sid))
+      .map(sid => {
+        const rRows = filteredRecall.filter(r => r.session_id === sid);
+        const recallPct = rRows.length > 0 ? mean(rRows.map(r => (r.correct_count / 12) * 100)) : 0;
+        const studied = displayRows.filter(r => r.session_id === sid && r.item_type === 'studied');
+        const recogPct = studied.length > 0
+          ? (studied.filter(r => r.response === 'old').length / studied.length) * 100 : 0;
+        const name = rRows[0]?.participant_name || sid.slice(0, 6);
+        return { x: round1(recallPct), y: round1(recogPct), name };
+      });
+  };
+
+  const computeRecognitionVsConfidenceScatter = () => {
+    const sessions = Array.from(new Set(displayRows.map(r => r.session_id)));
+    return sessions.map(sid => {
+      const sRows = displayRows.filter(r => r.session_id === sid);
+      const acc = sRows.length > 0 ? (sRows.filter(r => r.is_correct).length / sRows.length) * 100 : 0;
+      const withConf = sRows.filter(r => r.confidence != null);
+      const avgConf = withConf.length > 0 ? mean(withConf.map(r => r.confidence!)) : 0;
+      const name = sRows[0]?.participant_name || sid.slice(0, 6);
+      return { x: round1(acc), y: round1(avgConf), name };
+    });
+  };
+
+  const computeDistractorScatter = () => {
+    const filteredRecall = excludeSubs
+      ? recallData.filter(r => !excludedIds.has(r.session_id))
+      : recallData;
+    const sessions = Array.from(new Set(filteredRecall.map(r => r.session_id)));
+    return sessions
+      .map(sid => {
+        const rRows = filteredRecall.filter(r => r.session_id === sid);
+        const totalQ = rRows.reduce((s, r) => s + (r.distractor_total ?? 0), 0);
+        const totalC = rRows.reduce((s, r) => s + (r.distractor_correct ?? 0), 0);
+        if (totalQ === 0) return null;
+        const acc = (totalC / totalQ) * 100;
+        const name = rRows[0]?.participant_name || sid.slice(0, 6);
+        return { x: totalQ, y: round1(acc), name };
+      })
+      .filter((d): d is { x: number; y: number; name: string } => d !== null);
+  };
+
   const downloadCSV = () => {
     if (displayRows.length === 0) return;
     const headers = Object.keys(displayRows[0]);
@@ -319,6 +370,9 @@ export default function DRMTeacherDashboard() {
   const serialChart = computeSerialPositionChart();
   const confChart = computeConfidenceChart();
   const recallChart = computeRecallChart();
+  const recallVsRecogScatter = computeRecallVsRecognitionScatter();
+  const recogVsConfScatter = computeRecognitionVsConfidenceScatter();
+  const distractorScatter = computeDistractorScatter();
 
   return (
     <main className="min-h-screen p-8">
@@ -468,6 +522,78 @@ export default function DRMTeacherDashboard() {
                         </Line>
                       )}
                     </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 5: Free Recall vs Recognition (Individual)">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Each dot is one participant. X = correct free recall rate, Y = recognition hit rate (studied words).
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="x" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Free Recall (%)', position: 'insideBottom', offset: -5, ...TICK }} />
+                      <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Recognition Hit Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <ZAxis range={[60, 60]} />
+                      <Tooltip contentStyle={BG} formatter={(v: number) => [`${v}%`, '']} />
+                      {revealed && (
+                        <Scatter data={recallVsRecogScatter} fill="#34d399" name="Participant" />
+                      )}
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 6: Recognition Accuracy vs Confidence (Individual)">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Each dot is one participant. X = overall recognition accuracy, Y = mean confidence (1–4).
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="x" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Recognition Accuracy (%)', position: 'insideBottom', offset: -5, ...TICK }} />
+                      <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[1, 4]}
+                        label={{ value: 'Mean Confidence', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <ZAxis range={[60, 60]} />
+                      <Tooltip contentStyle={BG} />
+                      {revealed && (
+                        <Scatter data={recogVsConfScatter} fill="#fbbf24" name="Participant" />
+                      )}
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 7: Math Task Performance (Individual)">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Each dot is one participant. X = total questions answered (across all lists), Y = accuracy.
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" dataKey="x" stroke="#9ca3af" tick={TICK}
+                        label={{ value: 'Total Questions', position: 'insideBottom', offset: -5, ...TICK }} />
+                      <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <ZAxis range={[60, 60]} />
+                      <Tooltip contentStyle={BG} formatter={(v: number, n: string) => [n === 'y' ? `${v}%` : v, '']} />
+                      {revealed && (
+                        <Scatter data={distractorScatter} fill="#a78bfa" name="Participant" />
+                      )}
+                    </ScatterChart>
                   </ResponsiveContainer>
                 </div>
               )}

@@ -40,3 +40,10 @@ CREATE POLICY "allow select" ON drm_recall_results FOR SELECT USING (true);
 GRANT SELECT, INSERT ON drm_recall_results TO anon, authenticated;
 
 CREATE INDEX IF NOT EXISTS idx_drm_recall_session ON drm_recall_results(session_id);
+
+-- ============================================================
+-- 3. Add distractor columns to drm_recall_results
+-- ============================================================
+
+ALTER TABLE drm_recall_results ADD COLUMN IF NOT EXISTS distractor_correct int default 0;
+ALTER TABLE drm_recall_results ADD COLUMN IF NOT EXISTS distractor_total int default 0;

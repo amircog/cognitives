@@ -93,11 +93,11 @@ export default function DRMPracticePage() {
               <div className="bg-card border border-border rounded-xl p-6 mb-8" dir={he ? 'rtl' : 'ltr'}>
                 <p className="text-muted mb-4">
                   {he
-                    ? 'כעת תראי רשימה קצרה של 3 מילים לתרגול. אחריה — משימת זוגי/אי-זוגי קצרה, ואז שחזור חופשי.'
-                    : 'You will now see a short list of 3 practice words. After that — a brief odd/even task, then free recall.'}
+                    ? 'כעת תראי רשימה קצרה של 3 מילים לתרגול. אחריה — משימת חשבון קצרה, ואז שחזור חופשי.'
+                    : 'You will now see a short list of 3 practice words. After that — a brief math task, then free recall.'}
                 </p>
                 <p className="text-muted">
-                  {he ? 'בניסוי האמיתי יהיו 6 רשימות של 12 מילים כל אחת.' : 'The real experiment has 6 lists of 12 words each.'}
+                  {he ? 'בניסוי יהיו 6 רשימות של 12 מילים כל אחת.' : 'The experiment has 6 lists of 12 words each.'}
                 </p>
               </div>
               <motion.button
@@ -130,7 +130,7 @@ export default function DRMPracticePage() {
           {phase === 'distractor' && (
             <motion.div key="distractor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <p className="text-sm text-muted mb-2">
-                {he ? `זוגי / אי-זוגי — ${distractorTime} שניות` : `Odd / Even — ${distractorTime}s`}
+                {he ? `חשבון — ${distractorTime} שניות` : `Math — ${distractorTime}s`}
               </p>
               <div className="text-6xl font-bold text-emerald-400 my-8" style={{ fontFamily: 'monospace' }}>
                 {distractorNum}
@@ -202,8 +202,8 @@ export default function DRMPracticePage() {
                 </p>
                 <p className="text-muted mt-4">
                   {he
-                    ? 'בניסוי האמיתי לא תקבלי משוב — רק בתרגול.'
-                    : 'In the real experiment you will not receive feedback — only in practice.'}
+                    ? 'בניסוי לא תקבלי משוב — רק בתרגול.'
+                    : 'In the experiment you will not receive feedback — only in practice.'}
                 </p>
               </div>
               <motion.button
@@ -220,12 +220,12 @@ export default function DRMPracticePage() {
 
           {phase === 'done' && (
             <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <h3 className="text-2xl font-bold mb-4">{he ? 'מוכנה לניסוי האמיתי!' : 'Ready for the experiment!'}</h3>
+              <h3 className="text-2xl font-bold mb-4">{he ? 'מוכנה לניסוי!' : 'Ready for the experiment!'}</h3>
               <div className="bg-card border border-border rounded-xl p-6 mb-6" dir={he ? 'rtl' : 'ltr'}>
                 <p className="text-muted">
                   {he
-                    ? 'בניסוי תראי 6 רשימות של 12 מילים. אחרי כל רשימה — משימת הסחה (30 שניות) ואז שחזור חופשי (90 שניות). בסוף — מבחן זיהוי.'
-                    : 'The experiment has 6 lists of 12 words. After each — a distractor task (30s) then free recall (90s). Finally — a recognition test.'}
+                    ? 'בניסוי תראי 6 רשימות של 12 מילים. אחרי כל רשימה — משימת חשבון (30 שניות) ואז שחזור חופשי (90 שניות). בסוף — מבחן זיהוי.'
+                    : 'The experiment has 6 lists of 12 words. After each — a math task (30s) then free recall (90s). Finally — a recognition test.'}
                 </p>
               </div>
               <motion.button

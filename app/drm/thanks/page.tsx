@@ -10,8 +10,6 @@ const KEY = 'drm';
 
 interface PersonalStats {
   hitRate: number;
-  criticalLureRate: number;
-  foilFARate: number;
   totalItems: number;
 }
 
@@ -40,16 +38,10 @@ export default function DRMThanksPage() {
 
         const results = data as DRMResult[];
         const studied = results.filter(r => r.item_type === 'studied');
-        const lures = results.filter(r => r.item_type === 'critical_lure');
-        const foils = results.filter(r => r.item_type === 'unrelated_foil');
 
         setStats({
           hitRate: studied.length > 0
             ? (studied.filter(r => r.response === 'old').length / studied.length) * 100 : 0,
-          criticalLureRate: lures.length > 0
-            ? (lures.filter(r => r.response === 'old').length / lures.length) * 100 : 0,
-          foilFARate: foils.length > 0
-            ? (foils.filter(r => r.response === 'old').length / foils.length) * 100 : 0,
           totalItems: results.length,
         });
       } catch (err) {
@@ -95,12 +87,8 @@ export default function DRMThanksPage() {
                 <span className="text-emerald-400 font-bold">{stats.hitRate.toFixed(0)}%</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-lg">
-                <span className="text-muted">{he ? 'זיכרון שווא (פיתיונות קריטיים)' : 'False alarms (critical lures)'}</span>
-                <span className="text-red-400 font-bold">{stats.criticalLureRate.toFixed(0)}%</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-lg">
-                <span className="text-muted">{he ? 'התרעות שווא (מילים לא קשורות)' : 'False alarms (unrelated foils)'}</span>
-                <span className="text-gray-400 font-bold">{stats.foilFARate.toFixed(0)}%</span>
+                <span className="text-muted">{he ? 'סה"כ פריטים' : 'Total items'}</span>
+                <span className="text-gray-400 font-bold">{stats.totalItems}</span>
               </div>
             </div>
           )}

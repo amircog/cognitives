@@ -73,5 +73,7 @@ export interface DRMRecallResult {
   correct_count: number;
   intrusion_count: number;
   prior_list_intrusion_count: number;
+  distractor_correct?: number;
+  distractor_total?: number;
   created_at?: string;
 }

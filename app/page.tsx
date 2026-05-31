@@ -24,7 +24,7 @@ const EXPERIMENTS: Exp[] = [
   { id: 'bouba-kiki',      title: 'Bouba-Kiki Effect',       titleHe: 'אפקט בובה-קיקי',    icon: Shapes,    color: 'text-indigo-400'  },
   { id: 'stroop',          title: 'Stroop Effect',           titleHe: 'אפקט סטרופ',         icon: Brain,     color: 'text-emerald-400' },
   { id: 'mentalRep',       title: 'Mental Representation',   titleHe: 'ייצוג מנטלי',        icon: BrainCog,  color: 'text-cyan-400'    },
-  { id: 'drm',             title: 'False Memory (DRM)',      titleHe: 'זיכרון שווא',        icon: Beaker,    color: 'text-emerald-400' },
+  { id: 'drm',             title: 'Memory (DRM)',             titleHe: 'זיכרון (DRM)',        icon: Beaker,    color: 'text-emerald-400' },
   { id: 'srt',             title: 'Serial Reaction Time',   titleHe: 'זמן תגובה סדרתי',    icon: Timer,     color: 'text-lime-400'    },
   { id: 'twoStepTask',     title: 'Two-Step Task',          titleHe: 'משימת שני השלבים',    icon: GitFork,   color: 'text-violet-400'  },
   { id: 'serialOrder',     title: 'Serial Position',        titleHe: 'זיכרון סדרתי',        icon: List,      color: 'text-sky-400'     },

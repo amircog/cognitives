@@ -66,12 +66,12 @@ export default function DRMHomePage() {
         <div className="flex items-center justify-center gap-3 mb-6">
           <Brain className="w-10 h-10 text-emerald-400" />
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            {he ? 'ניסוי זיכרון שווא' : 'False Memory'}
+            {he ? 'ניסוי זיכרון' : 'Memory Experiment'}
           </h1>
         </div>
 
         <p className="text-xl text-muted mb-8">
-          {he ? 'DRM False Memory Experiment' : 'פרדיגמת DRM — זיכרון שווא'}
+          {he ? 'ניסוי זיכרון — DRM' : 'DRM Memory Experiment'}
         </p>
 
         <div className="bg-card border border-border rounded-xl p-6 mb-8" dir={he ? 'rtl' : 'ltr'}>
@@ -85,16 +85,13 @@ export default function DRMHomePage() {
                   <strong className="text-foreground">שלב 1: למידה</strong> — תראי רשימות של מילים באנגלית. נסי לזכור אותן.
                 </li>
                 <li>
-                  <strong className="text-foreground">שלב 2: הסחה</strong> — לאחר כל רשימה תבצעי משימה קצרה של זוגי/אי-זוגי.
+                  <strong className="text-foreground">שלב 2: חשבון</strong> — לאחר כל רשימה תבצעי משימה קצרה של זוגי/אי-זוגי.
                 </li>
                 <li>
                   <strong className="text-foreground">שלב 3: שחזור חופשי</strong> — הקלידי כמה שיותר מילים שזכרת מהרשימה.
                 </li>
                 <li>
                   <strong className="text-foreground">שלב 4: זיהוי</strong> — תראי מילים ותחליטי: האם ראית את המילה קודם?
-                </li>
-                <li>
-                  הניסוי בודק <strong className="text-foreground">זיכרונות שווא</strong> — לפעמים אנשים &quot;זוכרים&quot; מילים שלא ראו בכלל!
                 </li>
               </>
             ) : (
@@ -103,16 +100,13 @@ export default function DRMHomePage() {
                   <strong className="text-foreground">Phase 1: Study</strong> — You will see lists of English words. Try to remember them.
                 </li>
                 <li>
-                  <strong className="text-foreground">Phase 2: Distractor</strong> — After each list, complete a short odd/even task.
+                  <strong className="text-foreground">Phase 2: Math</strong> — After each list, complete a short odd/even task.
                 </li>
                 <li>
                   <strong className="text-foreground">Phase 3: Free recall</strong> — Type as many words as you remember from the list.
                 </li>
                 <li>
                   <strong className="text-foreground">Phase 4: Recognition</strong> — See words and decide: did you see this word before?
-                </li>
-                <li>
-                  This experiment tests <strong className="text-foreground">false memories</strong> — sometimes people &quot;remember&quot; words they never actually saw!
                 </li>
               </>
             )}
