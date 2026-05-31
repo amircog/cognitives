@@ -541,7 +541,7 @@ export default function DRMTeacherDashboard() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
                         label={{ value: 'Recognition Hit Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={BG} formatter={(v: number) => [`${v}%`, '']} />
+                      <Tooltip contentStyle={BG} formatter={pctFmt} />
                       {revealed && (
                         <Scatter data={recallVsRecogScatter} fill="#34d399" name="Participant" />
                       )}
@@ -589,7 +589,7 @@ export default function DRMTeacherDashboard() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
                         label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={BG} formatter={(v: number, n: string) => [n === 'y' ? `${v}%` : v, '']} />
+                      <Tooltip contentStyle={BG} formatter={pctFmt} />
                       {revealed && (
                         <Scatter data={distractorScatter} fill="#a78bfa" name="Participant" />
                       )}
