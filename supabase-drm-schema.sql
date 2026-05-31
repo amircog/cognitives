@@ -1,38 +1,42 @@
--- DRM Experiment Database Schema
--- Run this in your Supabase SQL Editor to create the DRM results table
+-- DRM False Memory Experiment — Schema Update
+-- Run this in the Supabase SQL Editor
 
--- Create the drm_results table
-CREATE TABLE drm_results (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  session_id uuid NOT NULL,
-  participant_name text,
-  word text NOT NULL,
-  item_type text NOT NULL CHECK (item_type IN ('studied', 'critical_lure', 'related_distractor', 'unrelated_distractor')),
-  list_theme text NOT NULL,
-  response text NOT NULL CHECK (response IN ('old', 'new')),
-  is_correct boolean NOT NULL,
-  reaction_time_ms float8 NOT NULL,
-  serial_position integer CHECK (serial_position >= 1 AND serial_position <= 12),
-  confidence integer CHECK (confidence >= 1 AND confidence <= 4),
-  created_at timestamptz DEFAULT now()
+-- ============================================================
+-- 1. Update existing drm_results table
+-- ============================================================
+
+-- Update item_type constraint to new values
+ALTER TABLE drm_results DROP CONSTRAINT IF EXISTS drm_results_item_type_check;
+ALTER TABLE drm_results ADD CONSTRAINT drm_results_item_type_check
+  CHECK (item_type IN ('studied', 'critical_lure', 'unrelated_foil',
+                        'related_distractor', 'unrelated_distractor'));
+
+-- Ensure GRANT for Data API access
+GRANT SELECT, INSERT ON drm_results TO anon, authenticated;
+
+-- ============================================================
+-- 2. Create new drm_recall_results table
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS drm_recall_results (
+  id                         bigint generated always as identity primary key,
+  created_at                 timestamptz default now() not null,
+  session_id                 text not null,
+  participant_name           text,
+  list_index                 int not null,
+  list_theme                 text not null,
+  recalled_words             text,
+  critical_lure_recalled     boolean not null default false,
+  correct_count              int not null default 0,
+  intrusion_count            int not null default 0,
+  prior_list_intrusion_count int not null default 0
 );
 
--- Create indexes
-CREATE INDEX idx_drm_session_id ON drm_results(session_id);
-CREATE INDEX idx_drm_item_type ON drm_results(item_type);
-CREATE INDEX idx_drm_created_at ON drm_results(created_at);
+ALTER TABLE drm_recall_results ENABLE ROW LEVEL SECURITY;
 
--- Enable Row Level Security
-ALTER TABLE drm_results ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow insert" ON drm_recall_results FOR INSERT WITH CHECK (true);
+CREATE POLICY "allow select" ON drm_recall_results FOR SELECT USING (true);
 
--- Allow anonymous inserts (for participants)
-CREATE POLICY "Allow anonymous inserts" ON drm_results
-  FOR INSERT TO anon WITH CHECK (true);
+GRANT SELECT, INSERT ON drm_recall_results TO anon, authenticated;
 
--- Allow anonymous selects (for viewing results)
-CREATE POLICY "Allow anonymous selects" ON drm_results
-  FOR SELECT TO anon USING (true);
-
--- Allow anonymous deletes (for clearing session results)
-CREATE POLICY "Allow anonymous deletes" ON drm_results
-  FOR DELETE TO anon USING (true);
+CREATE INDEX IF NOT EXISTS idx_drm_recall_session ON drm_recall_results(session_id);

@@ -1,34 +1,50 @@
 export interface WordList {
   theme: string;
-  themeHe: string;
   criticalLure: string;
-  studyWords: string[]; // Words presented during study (12 words)
-  relatedDistractors: string[]; // Related but not presented (4 words)
-  unrelatedDistractors: string[]; // Unrelated words (4 words)
+  studyWords: string[];
 }
 
 export interface StudyTrial {
   word: string;
   listTheme: string;
-  position: number; // Position in the list (1-12)
+  position: number;
+}
+
+export interface RecallEntry {
+  session_id: string;
+  participant_name?: string;
+  list_index: number;
+  list_theme: string;
+  recalled_words: string[];
+  critical_lure_recalled: boolean;
+  correct_count: number;
+  intrusion_count: number;
+  prior_list_intrusion_count: number;
+}
+
+export interface DistractorResult {
+  session_id: string;
+  list_index: number;
+  total_trials: number;
+  correct_count: number;
 }
 
 export interface TestItem {
   word: string;
-  itemType: 'studied' | 'critical_lure' | 'related_distractor' | 'unrelated_distractor';
+  itemType: 'studied' | 'critical_lure' | 'unrelated_foil';
   listTheme: string;
-  serialPosition?: number; // Position in original study list (1-15)
+  serialPosition?: number;
 }
 
 export interface TestResponse {
   word: string;
-  itemType: 'studied' | 'critical_lure' | 'related_distractor' | 'unrelated_distractor';
+  itemType: 'studied' | 'critical_lure' | 'unrelated_foil';
   listTheme: string;
   response: 'old' | 'new';
   isCorrect: boolean;
   reactionTimeMs: number;
-  serialPosition?: number; // Position in original study list (1-15)
-  confidence?: 1 | 2 | 3 | 4; // Confidence rating (1 = not sure, 4 = very sure)
+  serialPosition?: number;
+  confidence: 1 | 2 | 3 | 4;
 }
 
 export interface DRMResult {
@@ -36,21 +52,26 @@ export interface DRMResult {
   session_id: string;
   participant_name?: string;
   word: string;
-  item_type: 'studied' | 'critical_lure' | 'related_distractor' | 'unrelated_distractor';
+  item_type: 'studied' | 'critical_lure' | 'unrelated_foil';
   list_theme: string;
   response: 'old' | 'new';
   is_correct: boolean;
   reaction_time_ms: number;
-  serial_position?: number; // Position in original study list (1-15)
+  serial_position?: number;
   confidence?: number;
   created_at?: string;
 }
 
-export interface DRMSummary {
-  hitRate: number; // Correctly identifying studied words as "old"
-  criticalLureRate: number; // False alarm rate for critical lures
-  relatedFARate: number; // False alarm rate for related distractors
-  unrelatedFARate: number; // False alarm rate for unrelated distractors
-  correctRejectionRate: number; // Correctly identifying new words as "new"
-  totalItems: number;
+export interface DRMRecallResult {
+  id?: string;
+  session_id: string;
+  participant_name?: string;
+  list_index: number;
+  list_theme: string;
+  recalled_words: string;
+  critical_lure_recalled: boolean;
+  correct_count: number;
+  intrusion_count: number;
+  prior_list_intrusion_count: number;
+  created_at?: string;
 }

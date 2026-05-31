@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useState, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ErrorBar, LineChart, Line, Cell,
+} from 'recharts';
+import { GraduationCap, RefreshCw, Download } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
+import { DRMResult, DRMRecallResult } from '@/types/drm';
 
 const PW_HASH = '5f63c8759a4968d6e814db98e85f7658554882b44213d85f3a3b15480f47e69f';
 
@@ -8,42 +16,93 @@ async function sha256(str: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
-import { motion } from 'framer-motion';
-import { GraduationCap, RefreshCw, BarChart3 } from 'lucide-react';
-import { getSupabase } from '@/lib/supabase';
-import { DRMResult } from '@/types/drm';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from 'recharts';
 
-interface AggregateStats {
-  hitRate: number;
-  criticalLureRate: number;
-  relatedFARate: number;
-  unrelatedFARate: number;
-  totalParticipants: number;
-  totalResponses: number;
-  serialPositionData: Array<{ position: number; recallRate: number; count: number }>;
+const TICK = { fill: '#9ca3af', fontSize: 11 };
+const BG = { background: '#111827', border: '1px solid #374151', borderRadius: 6 };
+
+function mean(vals: number[]) { return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0; }
+function sem(vals: number[]) {
+  if (vals.length < 2) return 0;
+  const m = mean(vals);
+  const v = vals.reduce((a, x) => a + (x - m) ** 2, 0) / (vals.length - 1);
+  return Math.sqrt(v / vals.length);
+}
+function round1(n: number) { return Math.round(n * 10) / 10; }
+
+function sdCleanRows(rows: DRMResult[]): DRMResult[] {
+  const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  const cleaned: DRMResult[] = [];
+  for (const sid of sessions) {
+    const sRows = rows.filter(r => r.session_id === sid);
+    const rts = sRows.filter(r => r.reaction_time_ms != null).map(r => r.reaction_time_ms);
+    if (rts.length < 2) { cleaned.push(...sRows); continue; }
+    const m = mean(rts);
+    const sd = Math.sqrt(rts.reduce((a, b) => a + (b - m) ** 2, 0) / (rts.length - 1));
+    const lo = m - 2.5 * sd, hi = m + 2.5 * sd;
+    cleaned.push(...sRows.filter(r => r.reaction_time_ms >= lo && r.reaction_time_ms <= hi));
+  }
+  return cleaned;
 }
 
-export default function DRMTeacherDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<AggregateStats | null>(null);
+function excludeParticipants(rows: DRMResult[]): { kept: DRMResult[]; excludedIds: Set<string> } {
+  const sessions = Array.from(new Set(rows.map(r => r.session_id)));
+  if (sessions.length < 2) return { kept: rows, excludedIds: new Set() };
+  const pStats = sessions.map(sid => {
+    const sRows = rows.filter(r => r.session_id === sid);
+    const correct = sRows.filter(r => r.is_correct);
+    const acc = sRows.length > 0 ? correct.length / sRows.length : 0;
+    const rt = correct.length > 0 ? mean(correct.map(r => r.reaction_time_ms)) : 0;
+    return { sid, acc, rt };
+  });
+  const rts = pStats.map(p => p.rt);
+  const accs = pStats.map(p => p.acc);
+  const rtM = mean(rts), accM = mean(accs);
+  const rtSd = Math.sqrt(rts.reduce((a, b) => a + (b - rtM) ** 2, 0) / (rts.length - 1));
+  const accSd = Math.sqrt(accs.reduce((a, b) => a + (b - accM) ** 2, 0) / (accs.length - 1));
 
-  // ── Password gate ──────────────────────────────────────────────────────────
-  const [authed, setAuthed]   = useState(false);
+  const excludedIds = new Set<string>();
+  for (const p of pStats) {
+    if (p.rt < rtM - 2.5 * rtSd || p.rt > rtM + 2.5 * rtSd) excludedIds.add(p.sid);
+    if (p.acc < accM - 2.5 * accSd) excludedIds.add(p.sid);
+  }
+  return { kept: rows.filter(r => !excludedIds.has(r.session_id)), excludedIds };
+}
+
+function ChartCard({ title, children }: { title: string; children: (revealed: boolean) => React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-gray-200">{title}</h3>
+        <button
+          onClick={() => setRevealed(r => !r)}
+          className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+            revealed ? 'border-emerald-400 text-emerald-400' : 'border-gray-600 text-gray-400 hover:border-gray-400'
+          }`}
+        >
+          {revealed ? 'Hide' : 'Reveal'}
+        </button>
+      </div>
+      {children(revealed)}
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pctFmt = (v: any): any => v != null ? [`${Number(v).toFixed(1)}%`, ''] : ['', ''];
+
+export default function DRMTeacherDashboard() {
+  const [authed, setAuthed] = useState(false);
   const [pwInput, setPwInput] = useState('');
   const [pwError, setPwError] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recognitionData, setRecognitionData] = useState<DRMResult[]>([]);
+  const [recallData, setRecallData] = useState<DRMRecallResult[]>([]);
+
+  const [sdClean, setSdClean] = useState(false);
+  const [excludeSubs, setExcludeSubs] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem('ss_teacher_authed') === '1') setAuthed(true);
@@ -61,98 +120,160 @@ export default function DRMTeacherDashboard() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
-
     try {
       const supabase = getSupabase();
       if (!supabase) throw new Error('Supabase not available');
 
-      const allData: unknown[] = [];
+      const recogRows: DRMResult[] = [];
       let from = 0;
       while (true) {
-        const { data: page, error: fetchError } = await supabase
+        const { data, error: e } = await supabase
           .from('drm_results')
           .select('*')
           .order('created_at', { ascending: true })
           .range(from, from + 999);
-        if (fetchError) throw fetchError;
-        if (!page || page.length === 0) break;
-        allData.push(...page);
-        if (page.length < 1000) break;
+        if (e || !data || data.length === 0) break;
+        recogRows.push(...(data as DRMResult[]));
+        if (data.length < 1000) break;
         from += 1000;
       }
-      const data = allData as DRMResult[];
 
-      if (data.length === 0) {
-        setError('No data available yet. Waiting for participants to complete the experiment.');
-        setLoading(false);
-        return;
+      const recRows: DRMRecallResult[] = [];
+      from = 0;
+      while (true) {
+        const { data, error: e } = await supabase
+          .from('drm_recall_results')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .range(from, from + 999);
+        if (e || !data || data.length === 0) break;
+        recRows.push(...(data as DRMRecallResult[]));
+        if (data.length < 1000) break;
+        from += 1000;
       }
 
-      // Calculate aggregate statistics
-      const uniqueSessions = new Set(data.map((r: DRMResult) => r.session_id));
-
-      const studiedItems = data.filter((r: DRMResult) => r.item_type === 'studied');
-      const criticalLures = data.filter((r: DRMResult) => r.item_type === 'critical_lure');
-      const relatedDistractors = data.filter((r: DRMResult) => r.item_type === 'related_distractor');
-      const unrelatedDistractors = data.filter((r: DRMResult) => r.item_type === 'unrelated_distractor');
-
-      const hitRate = studiedItems.length > 0
-        ? (studiedItems.filter((r: DRMResult) => r.response === 'old').length / studiedItems.length) * 100
-        : 0;
-
-      const criticalLureRate = criticalLures.length > 0
-        ? (criticalLures.filter((r: DRMResult) => r.response === 'old').length / criticalLures.length) * 100
-        : 0;
-
-      const relatedFARate = relatedDistractors.length > 0
-        ? (relatedDistractors.filter((r: DRMResult) => r.response === 'old').length / relatedDistractors.length) * 100
-        : 0;
-
-      const unrelatedFARate = unrelatedDistractors.length > 0
-        ? (unrelatedDistractors.filter((r: DRMResult) => r.response === 'old').length / unrelatedDistractors.length) * 100
-        : 0;
-
-      // Calculate serial position curve (for studied items only)
-      const serialPositionData: Array<{ position: number; recallRate: number; count: number }> = [];
-      for (let position = 1; position <= 12; position++) {
-        const itemsAtPosition = studiedItems.filter(
-          (r: DRMResult) => r.serial_position === position
-        );
-        const recalled = itemsAtPosition.filter((r: DRMResult) => r.response === 'old').length;
-        const recallRate = itemsAtPosition.length > 0
-          ? (recalled / itemsAtPosition.length) * 100
-          : 0;
-
-        serialPositionData.push({
-          position,
-          recallRate,
-          count: itemsAtPosition.length
-        });
+      if (recogRows.length === 0 && recRows.length === 0) {
+        setError('No data available yet. Waiting for participants.');
       }
 
-      setStats({
-        hitRate,
-        criticalLureRate,
-        relatedFARate,
-        unrelatedFARate,
-        totalParticipants: uniqueSessions.size,
-        totalResponses: data.length,
-        serialPositionData
-      });
+      setRecognitionData(recogRows);
+      setRecallData(recRows);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load data. Please try again.');
+      console.error(err);
+      setError('Failed to load data.');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { if (authed) fetchData(); }, [authed, fetchData]);
+
+  let displayRows = recognitionData;
+  if (sdClean) displayRows = sdCleanRows(displayRows);
+  const { kept, excludedIds } = excludeSubs
+    ? excludeParticipants(displayRows)
+    : { kept: displayRows, excludedIds: new Set<string>() };
+  displayRows = kept;
+
+  const nParticipants = new Set(displayRows.map(r => r.session_id)).size;
+
+  const computeRecognitionChart = () => {
+    const sessions = Array.from(new Set(displayRows.map(r => r.session_id)));
+    const types = ['studied', 'critical_lure', 'unrelated_foil'] as const;
+    const labels = ['Studied Words', 'Critical Lures', 'Unrelated Foils'];
+    const colors = ['#34d399', '#f43f5e', '#71717a'];
+
+    return types.map((type, i) => {
+      const perParticipant = sessions.map(sid => {
+        const items = displayRows.filter(r => r.session_id === sid && r.item_type === type);
+        return items.length > 0
+          ? (items.filter(r => r.response === 'old').length / items.length) * 100
+          : 0;
+      });
+      return {
+        name: labels[i],
+        value: round1(mean(perParticipant)),
+        sem: round1(sem(perParticipant)),
+        fill: colors[i],
+      };
+    });
   };
 
-  useEffect(() => {
-    if (authed) fetchData();
-  }, [authed]);
+  const computeSerialPositionChart = () => {
+    const sessions = Array.from(new Set(displayRows.map(r => r.session_id)));
+    const studied = displayRows.filter(r => r.item_type === 'studied');
+
+    return Array.from({ length: 12 }, (_, i) => {
+      const pos = i + 1;
+      const perParticipant = sessions.map(sid => {
+        const items = studied.filter(r => r.session_id === sid && r.serial_position === pos);
+        return items.length > 0
+          ? (items.filter(r => r.response === 'old').length / items.length) * 100
+          : 0;
+      });
+      return {
+        position: pos,
+        value: round1(mean(perParticipant)),
+        sem: round1(sem(perParticipant)),
+      };
+    });
+  };
+
+  const computeConfidenceChart = () => {
+    const types = ['studied', 'critical_lure', 'unrelated_foil'] as const;
+    const labels = ['Studied', 'Lures', 'Foils'];
+    return labels.map((label, i) => {
+      const items = displayRows.filter(r => r.item_type === types[i] && r.response === 'old' && r.confidence != null);
+      const total = items.length || 1;
+      return {
+        name: label,
+        'Sure old (4)': round1((items.filter(r => r.confidence === 4).length / total) * 100),
+        'Probably old (3)': round1((items.filter(r => r.confidence === 3).length / total) * 100),
+        'Probably new (2)': round1((items.filter(r => r.confidence === 2).length / total) * 100),
+        'Sure new (1)': round1((items.filter(r => r.confidence === 1).length / total) * 100),
+      };
+    });
+  };
+
+  const computeRecallChart = () => {
+    const filteredRecall = excludeSubs
+      ? recallData.filter(r => !excludedIds.has(r.session_id))
+      : recallData;
+    const sessions = Array.from(new Set(filteredRecall.map(r => r.session_id)));
+
+    const perParticipantCorrect = sessions.map(sid => {
+      const rows = filteredRecall.filter(r => r.session_id === sid);
+      return rows.length > 0 ? mean(rows.map(r => (r.correct_count / 12) * 100)) : 0;
+    });
+    const perParticipantLure = sessions.map(sid => {
+      const rows = filteredRecall.filter(r => r.session_id === sid);
+      return rows.length > 0 ? (rows.filter(r => r.critical_lure_recalled).length / rows.length) * 100 : 0;
+    });
+
+    return [
+      { name: 'Correct Recall', value: round1(mean(perParticipantCorrect)), sem: round1(sem(perParticipantCorrect)), fill: '#34d399' },
+      { name: 'False Recall (Lure)', value: round1(mean(perParticipantLure)), sem: round1(sem(perParticipantLure)), fill: '#f43f5e' },
+    ];
+  };
+
+  const downloadCSV = () => {
+    if (displayRows.length === 0) return;
+    const headers = Object.keys(displayRows[0]);
+    const csv = [
+      headers.join(','),
+      ...displayRows.map(r => headers.map(h => JSON.stringify((r as unknown as Record<string, unknown>)[h] ?? '')).join(',')),
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'drm_recognition_data.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (!authed) {
     return (
@@ -160,21 +281,19 @@ export default function DRMTeacherDashboard() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="bg-card border border-border rounded-xl p-10 w-full max-w-sm flex flex-col items-center gap-6"
         >
-          <GraduationCap className="w-10 h-10 text-purple-400" />
+          <GraduationCap className="w-10 h-10 text-emerald-400" />
           <h1 className="text-xl font-bold">Teacher Dashboard</h1>
           <form onSubmit={handleLogin} className="w-full flex flex-col gap-3">
             <input
-              type="password"
-              value={pwInput}
+              type="password" value={pwInput}
               onChange={e => { setPwInput(e.target.value); setPwError(false); }}
-              placeholder="Password"
-              autoFocus
+              placeholder="Password" autoFocus
               className={`w-full px-4 py-3 rounded-lg border bg-zinc-800 text-white outline-none transition-colors
-                ${pwError ? 'border-red-500' : 'border-border focus:border-purple-400'}`}
+                ${pwError ? 'border-red-500' : 'border-border focus:border-emerald-400'}`}
             />
             {pwError && <p className="text-red-400 text-sm text-center">Incorrect password</p>}
             <button type="submit"
-              className="w-full py-3 bg-purple-400 hover:bg-purple-300 text-zinc-900 font-bold rounded-lg transition-colors">
+              className="w-full py-3 bg-emerald-400 hover:bg-emerald-300 text-zinc-900 font-bold rounded-lg transition-colors">
               Enter
             </button>
           </form>
@@ -187,12 +306,8 @@ export default function DRMTeacherDashboard() {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-            className="inline-block mb-4"
-          >
-            <RefreshCw className="w-8 h-8 text-purple-400" />
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="inline-block mb-4">
+            <RefreshCw className="w-8 h-8 text-emerald-400" />
           </motion.div>
           <p className="text-muted">Loading data...</p>
         </div>
@@ -200,186 +315,167 @@ export default function DRMTeacherDashboard() {
     );
   }
 
-  const chartData = stats ? [
-    {
-      name: 'Hits (Studied)',
-      rate: stats.hitRate.toFixed(1),
-      fill: '#34d399'
-    },
-    {
-      name: 'Critical Lures',
-      rate: stats.criticalLureRate.toFixed(1),
-      fill: '#f43f5e'
-    },
-    {
-      name: 'Related FA',
-      rate: stats.relatedFARate.toFixed(1),
-      fill: '#fbbf24'
-    },
-    {
-      name: 'Unrelated FA',
-      rate: stats.unrelatedFARate.toFixed(1),
-      fill: '#71717a'
-    }
-  ] : [];
+  const recogChart = computeRecognitionChart();
+  const serialChart = computeSerialPositionChart();
+  const confChart = computeConfidenceChart();
+  const recallChart = computeRecallChart();
 
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <GraduationCap className="w-10 h-10 text-purple-400" />
+            <GraduationCap className="w-10 h-10 text-emerald-400" />
             <div>
-              <h1 className="text-4xl font-bold tracking-tight">Teacher Dashboard</h1>
-              <p className="text-muted mt-1">DRM False Memory Results</p>
+              <h1 className="text-3xl font-bold tracking-tight">DRM Teacher Dashboard</h1>
+              <p className="text-muted text-sm">
+                {nParticipants} participants · {displayRows.length} recognition responses · {recallData.length} recall entries
+              </p>
             </div>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={fetchData}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-400 text-zinc-900
-                       font-semibold rounded-lg hover:bg-purple-300 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Data
-          </motion.button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setSdClean(v => !v)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                sdClean ? 'border-emerald-400 text-emerald-400' : 'border-gray-600 text-gray-400 hover:border-gray-400'
+              }`}>
+              {sdClean ? 'SD-Clean (±2.5)' : 'Raw Trials'}
+            </button>
+            <button onClick={() => setExcludeSubs(v => !v)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                excludeSubs ? 'border-emerald-400 text-emerald-400' : 'border-gray-600 text-gray-400 hover:border-gray-400'
+              }`}>
+              {excludeSubs ? `Excl. Participants (${excludedIds.size})` : 'All Participants'}
+            </button>
+            <button onClick={downloadCSV}
+              className="text-xs px-3 py-1.5 rounded-full border border-gray-600 text-gray-400 hover:border-gray-400 transition-colors flex items-center gap-1">
+              <Download className="w-3 h-3" /> CSV
+            </button>
+            <button onClick={fetchData}
+              className="text-xs px-3 py-1.5 rounded-full border border-emerald-400 text-emerald-400 hover:bg-emerald-400/10 transition-colors flex items-center gap-1">
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
+          </div>
         </div>
 
-        {/* Stats Cards */}
-        {!error && stats && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div className="bg-card border border-border rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <BarChart3 className="w-5 h-5 text-purple-400" />
-                  <h3 className="text-sm font-medium text-muted">Total Participants</h3>
-                </div>
-                <p className="text-3xl font-bold">{stats.totalParticipants}</p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <BarChart3 className="w-5 h-5 text-blue-400" />
-                  <h3 className="text-sm font-medium text-muted">Total Responses</h3>
-                </div>
-                <p className="text-3xl font-bold">{stats.totalResponses}</p>
-              </div>
-            </div>
-
-            {/* Main Chart */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-2">Recognition Rates by Item Type</h2>
-              <p className="text-muted mb-6">
-                Percentage of "OLD" responses for each item type. Critical lures show the false memory effect.
-              </p>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis
-                    dataKey="name"
-                    stroke="#a1a1aa"
-                    tick={{ fill: '#a1a1aa' }}
-                    angle={-15}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis
-                    stroke="#a1a1aa"
-                    tick={{ fill: '#a1a1aa' }}
-                    domain={[0, 100]}
-                    label={{ value: '"OLD" Response Rate (%)', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#18181b',
-                      border: '1px solid #27272a',
-                      borderRadius: '8px',
-                    }}
-                    labelStyle={{ color: '#fafafa' }}
-                    itemStyle={{ color: '#fafafa' }}
-                  />
-                  <Bar dataKey="rate" radius={[8, 8, 0, 0]} maxBarSize={100}>
-                    {chartData.map((entry, index) => (
-                      <Bar key={`bar-${index}`} dataKey="rate" fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Serial Position Curve */}
-            <div className="bg-card border border-border rounded-xl p-6 mt-8">
-              <h2 className="text-2xl font-bold mb-2">Serial Position Curve</h2>
-              <p className="text-muted mb-6">
-                Recall rate by position in the original study list (1-12). Shows primacy (early items) and recency (late items) effects.
-              </p>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart
-                  data={stats.serialPositionData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis
-                    dataKey="position"
-                    stroke="#a1a1aa"
-                    tick={{ fill: '#a1a1aa' }}
-                    label={{ value: 'Serial Position', position: 'insideBottom', offset: -5, fill: '#a1a1aa' }}
-                  />
-                  <YAxis
-                    stroke="#a1a1aa"
-                    tick={{ fill: '#a1a1aa' }}
-                    domain={[0, 100]}
-                    label={{ value: 'Recall Rate (%)', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#18181b',
-                      border: '1px solid #27272a',
-                      borderRadius: '8px',
-                    }}
-                    labelStyle={{ color: '#fafafa' }}
-                    itemStyle={{ color: '#fafafa' }}
-                    formatter={(value: any, name: any) => {
-                      if (name === 'recallRate' && typeof value === 'number') {
-                        return [`${value.toFixed(1)}%`, 'Recall Rate'];
-                      }
-                      return [value, name];
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="recallRate"
-                    stroke="#a855f7"
-                    strokeWidth={3}
-                    dot={{ fill: '#a855f7', r: 5 }}
-                    activeDot={{ r: 7 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
-
-        {/* Error State */}
         {error && (
           <div className="bg-card border border-yellow-500/50 rounded-xl p-8 mb-8 text-center">
-            <p className="text-yellow-400 mb-4">{error}</p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={fetchData}
-              className="px-4 py-2 bg-purple-400 text-zinc-900 font-semibold rounded-lg
-                         hover:bg-purple-300 transition-colors"
-            >
-              Retry
-            </motion.button>
+            <p className="text-yellow-400">{error}</p>
+          </div>
+        )}
+
+        {!error && (
+          <div className="grid gap-8">
+            <ChartCard title="Figure 1: Recognition Rates by Item Type (DRM Classic Contrast)">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Percentage of &quot;OLD&quot; responses. Critical lures near the hit rate = strong false memory effect.
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={recogChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" stroke="#9ca3af" tick={TICK} />
+                      <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: '"OLD" Response Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <Tooltip contentStyle={BG} formatter={pctFmt} />
+                      {revealed && (
+                        <Bar dataKey="value" name="Rate (%)">
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                          {recogChart.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 2: Free Recall — Correct vs False Recall">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Proportion of studied words correctly recalled vs critical lures falsely recalled (across lists).
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={recallChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" stroke="#9ca3af" tick={TICK} />
+                      <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <Tooltip contentStyle={BG} formatter={pctFmt} />
+                      {revealed && (
+                        <Bar dataKey="value" name="Rate (%)">
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                          {recallChart.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 3: Confidence Distribution for 'OLD' Responses">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Distribution of confidence ratings (1–4) among &quot;OLD&quot; responses by item type.
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={confChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" stroke="#9ca3af" tick={TICK} />
+                      <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Proportion (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <Tooltip contentStyle={BG} />
+                      <Legend verticalAlign="top" />
+                      {revealed && (
+                        <>
+                          <Bar dataKey="Sure old (4)" stackId="a" fill="#34d399" />
+                          <Bar dataKey="Probably old (3)" stackId="a" fill="#6ee7b7" />
+                          <Bar dataKey="Probably new (2)" stackId="a" fill="#fbbf24" />
+                          <Bar dataKey="Sure new (1)" stackId="a" fill="#71717a" />
+                        </>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Figure 4: Serial Position Curve (Recognition)">
+              {(revealed) => (
+                <div>
+                  <p className="text-xs text-muted mb-4">
+                    Hit rate by position in the original study list (1–12). Shows primacy and recency effects.
+                  </p>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={serialChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="position" stroke="#9ca3af" tick={TICK}
+                        label={{ value: 'Serial Position', position: 'insideBottom', offset: -5, ...TICK }} />
+                      <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                        label={{ value: 'Hit Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                      <Tooltip contentStyle={BG} formatter={pctFmt} />
+                      {revealed && (
+                        <Line type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2.5}
+                          dot={{ fill: '#34d399', r: 4 }} activeDot={{ r: 6 }} name="Hit Rate">
+                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                        </Line>
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
           </div>
         )}
       </div>
     </main>
   );
 }
+
