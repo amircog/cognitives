@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,6 +17,7 @@ const pctFmt = (v: any): any => v != null ? [`${Number(v).toFixed(0)}%`, ''] : [
 interface BarPoint { name: string; accuracy: number }
 
 export default function ThanksPage() {
+  const router = useRouter();
   const [session, setSession] = useState<string | null>(null);
   const [language, setLanguage] = useState<'en' | 'he'>('he');
   const [chartData, setChartData] = useState<BarPoint[] | null>(null);
@@ -47,6 +49,13 @@ export default function ThanksPage() {
     }
   }, []);
 
+  const handleContinue = () => {
+    const name = sessionStorage.getItem('te_name');
+    if (name) sessionStorage.setItem('drm_participant_name', name);
+    sessionStorage.setItem('drm_language', language);
+    router.push('/drm');
+  };
+
   const isHe = language === 'he';
   const t = isHe ? {
     thanks1: '!תודה רבה',
@@ -54,12 +63,16 @@ export default function ThanksPage() {
     thanks2: '!תודה רבה',
     results: 'התוצאות שלך',
     accuracy: 'דיוק (%)',
+    next: 'כעת נעבור למשימה נוספת.',
+    cont: 'המשיכי',
   } : {
     thanks1: 'Thank You!',
     done1: 'Session 1 is complete. See you next week!',
     thanks2: 'Thank You!',
     results: 'Your Results',
     accuracy: 'Accuracy (%)',
+    next: 'Now for one more task.',
+    cont: 'Continue',
   };
 
   return (
@@ -86,6 +99,18 @@ export default function ThanksPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        )}
+
+        {session === '2' && (
+          <>
+            <p className="text-lg text-gray-200">{t.next}</p>
+            <button
+              onPointerDown={e => { e.preventDefault(); handleContinue(); }}
+              className="mt-2 px-10 py-4 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-lg transition-colors touch-manipulation shadow-lg"
+            >
+              {t.cont}
+            </button>
+          </>
         )}
       </div>
     </div>

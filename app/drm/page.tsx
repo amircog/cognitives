@@ -15,6 +15,8 @@ export default function DRMHomePage() {
   useEffect(() => {
     const saved = sessionStorage.getItem(`${KEY}_language`) as 'he' | 'en' | null;
     if (saved) setLang(saved);
+    const savedName = sessionStorage.getItem(`${KEY}_participant_name`);
+    if (savedName) setFullName(savedName);
   }, []);
 
   const toggleLang = () => {
