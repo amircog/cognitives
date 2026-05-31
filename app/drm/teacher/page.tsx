@@ -172,14 +172,15 @@ export default function DRMTeacherDashboard() {
 
   useEffect(() => { if (authed) fetchData(); }, [authed, fetchData]);
 
-  let displayRows = recognitionData;
-  if (sdClean) displayRows = sdCleanRows(displayRows);
+  const trialCleanedRows = sdClean ? sdCleanRows(recognitionData) : recognitionData;
+  const trialExcludedCount = recognitionData.length - trialCleanedRows.length;
   const { kept, excludedIds } = excludeSubs
-    ? excludeParticipants(displayRows)
-    : { kept: displayRows, excludedIds: new Set<string>() };
-  displayRows = kept;
+    ? excludeParticipants(trialCleanedRows)
+    : { kept: trialCleanedRows, excludedIds: new Set<string>() };
+  let displayRows = kept;
 
   const nParticipants = new Set(displayRows.map(r => r.session_id)).size;
+  const nRecallParticipants = new Set(recallData.map(r => r.session_id)).size;
 
   const computeRecognitionChart = () => {
     const sessions = Array.from(new Set(displayRows.map(r => r.session_id)));
@@ -376,43 +377,65 @@ export default function DRMTeacherDashboard() {
 
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+      <div className="max-w-7xl mx-auto flex flex-col gap-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <GraduationCap className="w-10 h-10 text-emerald-400" />
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">DRM Teacher Dashboard</h1>
-              <p className="text-muted text-sm">
-                {nParticipants} participants · {displayRows.length} recognition responses · {recallData.length} recall entries
-              </p>
-            </div>
+            <h1 className="text-3xl font-bold tracking-tight">DRM Teacher Dashboard</h1>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => setSdClean(v => !v)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                sdClean ? 'border-emerald-400 text-emerald-400' : 'border-gray-600 text-gray-400 hover:border-gray-400'
-              }`}>
-              {sdClean ? 'SD-Clean (±2.5)' : 'Raw Trials'}
+          <div className="flex gap-2">
+            <button onClick={downloadCSV} className="p-2 rounded-lg border border-gray-600 text-gray-400 hover:text-emerald-400 hover:border-emerald-400 transition-colors">
+              <Download className="w-4 h-4" />
             </button>
-            <button onClick={() => setExcludeSubs(v => !v)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                excludeSubs ? 'border-emerald-400 text-emerald-400' : 'border-gray-600 text-gray-400 hover:border-gray-400'
-              }`}>
-              {excludeSubs ? `Excl. Participants (${excludedIds.size})` : 'All Participants'}
-            </button>
-            <button onClick={downloadCSV}
-              className="text-xs px-3 py-1.5 rounded-full border border-gray-600 text-gray-400 hover:border-gray-400 transition-colors flex items-center gap-1">
-              <Download className="w-3 h-3" /> CSV
-            </button>
-            <button onClick={fetchData}
-              className="text-xs px-3 py-1.5 rounded-full border border-emerald-400 text-emerald-400 hover:bg-emerald-400/10 transition-colors flex items-center gap-1">
-              <RefreshCw className="w-3 h-3" /> Refresh
+            <button onClick={fetchData} className="p-2 rounded-lg border border-gray-600 text-gray-400 hover:text-emerald-400 hover:border-emerald-400 transition-colors">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
 
+        <div className="flex gap-4 flex-wrap">
+          <StatBox label="Participants" value={nParticipants} />
+          <StatBox label="Recognition Trials" value={displayRows.length} />
+          <StatBox label="Recall Entries" value={recallData.length} />
+        </div>
+
+        {recognitionData.length > 0 && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button onClick={() => setSdClean(false)} className={`px-5 py-2 text-sm font-medium transition-colors ${!sdClean ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                Raw Data
+              </button>
+              <button onClick={() => setSdClean(true)} className={`px-5 py-2 text-sm font-medium transition-colors ${sdClean ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                SD-Clean (±2.5)
+              </button>
+            </div>
+            <p className="text-xs text-muted h-4">
+              {sdClean
+                ? trialExcludedCount > 0
+                  ? `${trialExcludedCount} trial${trialExcludedCount > 1 ? 's' : ''} excluded (${trialCleanedRows.length} of ${recognitionData.length} kept)`
+                  : 'No trials excluded'
+                : `${recognitionData.length} trials`}
+            </p>
+            <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+              <button onClick={() => setExcludeSubs(false)} className={`px-5 py-2 text-sm font-medium transition-colors ${!excludeSubs ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                All Participants
+              </button>
+              <button onClick={() => setExcludeSubs(true)} className={`px-5 py-2 text-sm font-medium transition-colors ${excludeSubs ? 'bg-rose-500 text-white' : 'text-muted hover:text-foreground'}`}>
+                Exclude Outliers (±2.5 SD)
+              </button>
+            </div>
+            <p className="text-xs text-muted h-4">
+              {excludeSubs
+                ? excludedIds.size > 0
+                  ? `${excludedIds.size} participant${excludedIds.size > 1 ? 's' : ''} excluded (RT ±2.5 SD or accuracy −2.5 SD)`
+                  : 'No participants excluded'
+                : `${nParticipants} participants`}
+            </p>
+          </div>
+        )}
+
         {error && (
-          <div className="bg-card border border-yellow-500/50 rounded-xl p-8 mb-8 text-center">
+          <div className="bg-card border border-yellow-500/50 rounded-xl p-8 text-center">
             <p className="text-yellow-400">{error}</p>
           </div>
         )}
@@ -602,6 +625,15 @@ export default function DRMTeacherDashboard() {
         )}
       </div>
     </main>
+  );
+}
+
+function StatBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-card border border-border rounded-xl px-5 py-3">
+      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xl font-bold text-white">{value}</p>
+    </div>
   );
 }
 
