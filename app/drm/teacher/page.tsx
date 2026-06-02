@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ErrorBar, LineChart, Line, Cell,
-  ScatterChart, Scatter, ZAxis,
+  ScatterChart, Scatter, ZAxis, ComposedChart,
 } from 'recharts';
 import { GraduationCap, RefreshCw, Download } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -19,7 +19,7 @@ async function sha256(str: string): Promise<string> {
 }
 
 const TICK = { fill: '#9ca3af', fontSize: 11 };
-const BG = { background: '#111827', border: '1px solid #374151', borderRadius: 6 };
+const BG = { background: '#111827', border: '1px solid #374151', borderRadius: 6, color: '#e5e7eb' };
 
 function mean(vals: number[]) { return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0; }
 function sem(vals: number[]) {
@@ -91,6 +91,19 @@ function ChartCard({ title, children }: { title: string; children: (revealed: bo
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pctFmt = (v: any): any => v != null ? [`${Number(v).toFixed(1)}%`, ''] : ['', ''];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ScatterTooltip({ active, payload, xLabel, yLabel, yFmt }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ ...BG, padding: '8px 12px', fontSize: 12 }}>
+      <p style={{ fontWeight: 700, marginBottom: 4 }}>{d.name}</p>
+      <p>{xLabel}: {d.x}{typeof d.x === 'number' && xLabel.includes('%') ? '%' : ''}</p>
+      <p>{yLabel}: {yFmt ? yFmt(d.y) : d.y}{typeof d.y === 'number' && yLabel.includes('%') ? '%' : ''}</p>
+    </div>
+  );
+}
 
 export default function DRMTeacherDashboard() {
   const [authed, setAuthed] = useState(false);
@@ -246,19 +259,23 @@ export default function DRMTeacherDashboard() {
       : recallData;
     const sessions = Array.from(new Set(filteredRecall.map(r => r.session_id)));
 
-    const perParticipantCorrect = sessions.map(sid => {
+    const participantData = sessions.map(sid => {
       const rows = filteredRecall.filter(r => r.session_id === sid);
-      return rows.length > 0 ? mean(rows.map(r => (r.correct_count / 10) * 100)) : 0;
-    });
-    const perParticipantLure = sessions.map(sid => {
-      const rows = filteredRecall.filter(r => r.session_id === sid);
-      return rows.length > 0 ? (rows.filter(r => r.critical_lure_recalled).length / rows.length) * 100 : 0;
+      const name = rows[0]?.participant_name || sid.slice(0, 6);
+      const correctPct = rows.length > 0 ? round1(mean(rows.map(r => (r.correct_count / 10) * 100))) : 0;
+      const lurePct = rows.length > 0 ? round1((rows.filter(r => r.critical_lure_recalled).length / rows.length) * 100) : 0;
+      return { name, correctPct, lurePct };
     });
 
-    return [
-      { name: 'Correct Recall', value: round1(mean(perParticipantCorrect)), sem: round1(sem(perParticipantCorrect)), fill: '#34d399' },
-      { name: 'False Recall (Lure)', value: round1(mean(perParticipantLure)), sem: round1(sem(perParticipantLure)), fill: '#f43f5e' },
+    const correctVals = participantData.map(p => p.correctPct);
+    const lureVals = participantData.map(p => p.lurePct);
+
+    const bars = [
+      { name: 'Correct Recall', value: round1(mean(correctVals)), sem: round1(sem(correctVals)), fill: '#34d399' },
+      { name: 'False Recall (Lure)', value: round1(mean(lureVals)), sem: round1(sem(lureVals)), fill: '#f43f5e' },
     ];
+
+    return { bars, participantData };
   };
 
   const computeRecallVsRecognitionScatter = () => {
@@ -370,7 +387,7 @@ export default function DRMTeacherDashboard() {
   const recogChart = computeRecognitionChart();
   const serialChart = computeSerialPositionChart();
   const confChart = computeConfidenceChart();
-  const recallChart = computeRecallChart();
+  const { bars: recallChart, participantData: recallParticipants } = computeRecallChart();
   const recallVsRecogScatter = computeRecallVsRecognitionScatter();
   const recogVsConfScatter = computeRecognitionVsConfidenceScatter();
   const distractorScatter = computeDistractorScatter();
@@ -470,30 +487,59 @@ export default function DRMTeacherDashboard() {
             </ChartCard>
 
             <ChartCard title="Figure 2: Free Recall — Correct vs False Recall">
-              {(revealed) => (
-                <div>
-                  <p className="text-xs text-muted mb-4">
-                    Proportion of studied words correctly recalled vs critical lures falsely recalled (across lists).
-                  </p>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={recallChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="name" stroke="#9ca3af" tick={TICK} />
-                      <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
-                        label={{ value: 'Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
-                      <Tooltip contentStyle={BG} formatter={pctFmt} />
-                      {revealed && (
-                        <Bar dataKey="value" name="Rate (%)">
-                          <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
-                          {recallChart.map((entry, i) => (
-                            <Cell key={i} fill={entry.fill} />
-                          ))}
-                        </Bar>
-                      )}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              {(revealed) => {
+                const individualLines = recallParticipants.map(p => ({
+                  name: p.name,
+                  'Correct Recall': p.correctPct,
+                  'False Recall (Lure)': p.lurePct,
+                }));
+                return (
+                  <div>
+                    <p className="text-xs text-muted mb-4">
+                      Proportion of studied words correctly recalled vs critical lures falsely recalled. Lines show individual participants.
+                    </p>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart data={recallChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="name" stroke="#9ca3af" tick={TICK} />
+                        <YAxis stroke="#9ca3af" tick={TICK} domain={[0, 100]}
+                          label={{ value: 'Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                        <Tooltip contentStyle={BG} formatter={pctFmt} />
+                        {revealed && (
+                          <>
+                            <Bar dataKey="value" name="Mean (%)">
+                              <ErrorBar dataKey="sem" width={4} strokeWidth={1.5} stroke="#6b7280" direction="y" />
+                              {recallChart.map((entry, i) => (
+                                <Cell key={i} fill={entry.fill} />
+                              ))}
+                            </Bar>
+                            {individualLines.map((p, i) => {
+                              const lineData = [
+                                { name: 'Correct Recall', y: p['Correct Recall'] },
+                                { name: 'False Recall (Lure)', y: p['False Recall (Lure)'] },
+                              ];
+                              return (
+                                <Line
+                                  key={i}
+                                  data={lineData}
+                                  dataKey="y"
+                                  stroke="#9ca3af"
+                                  strokeWidth={1}
+                                  strokeOpacity={0.35}
+                                  dot={{ r: 2.5, fill: '#9ca3af', fillOpacity: 0.5 }}
+                                  activeDot={false}
+                                  legendType="none"
+                                  isAnimationActive={false}
+                                />
+                              );
+                            })}
+                          </>
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              }}
             </ChartCard>
 
             <ChartCard title="Figure 3: Confidence Distribution for 'OLD' Responses">
@@ -564,7 +610,7 @@ export default function DRMTeacherDashboard() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
                         label={{ value: 'Recognition Hit Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={BG} formatter={pctFmt} />
+                      <Tooltip content={<ScatterTooltip xLabel="Free Recall (%)" yLabel="Recognition (%)" />} />
                       {revealed && (
                         <Scatter data={recallVsRecogScatter} fill="#34d399" name="Participant" />
                       )}
@@ -588,7 +634,7 @@ export default function DRMTeacherDashboard() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[1, 4]}
                         label={{ value: 'Mean Confidence', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={BG} />
+                      <Tooltip content={<ScatterTooltip xLabel="Accuracy (%)" yLabel="Confidence" />} />
                       {revealed && (
                         <Scatter data={recogVsConfScatter} fill="#fbbf24" name="Participant" />
                       )}
@@ -612,7 +658,7 @@ export default function DRMTeacherDashboard() {
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
                         label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip contentStyle={BG} formatter={pctFmt} />
+                      <Tooltip content={<ScatterTooltip xLabel="Questions" yLabel="Accuracy (%)" />} />
                       {revealed && (
                         <Scatter data={distractorScatter} fill="#a78bfa" name="Participant" />
                       )}
