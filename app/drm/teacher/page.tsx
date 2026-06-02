@@ -468,7 +468,7 @@ export default function DRMTeacherDashboard() {
               {(revealed) => (
                 <div>
                   <p className="text-xs text-muted mb-4">
-                    Percentage of &quot;OLD&quot; responses. Critical lures near the hit rate = strong false memory effect.
+                    Percentage of &quot;OLD&quot; responses per item type. The gap between studied words and critical lures reflects the DRM illusion strength.
                   </p>
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={recogChart} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
