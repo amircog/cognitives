@@ -592,7 +592,7 @@ export default function DRMTeacherDashboard() {
               {(revealed) => (
                 <div>
                   <p className="text-xs text-muted mb-4">
-                    Each dot is one participant. X = correct free recall rate, Y = recognition hit rate (studied words).
+                    Each dot is one participant. X = correct free recall rate, Y = hit rate (% of studied words called &quot;old&quot;).
                   </p>
                   <ResponsiveContainer width="100%" height={320}>
                     <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
@@ -600,9 +600,9 @@ export default function DRMTeacherDashboard() {
                       <XAxis type="number" dataKey="x" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
                         label={{ value: 'Free Recall (%)', position: 'insideBottom', offset: -5, ...TICK }} />
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
-                        label={{ value: 'Recognition Hit Rate (%)', angle: -90, position: 'insideLeft', ...TICK }} />
+                        label={{ value: 'Hit Rate (% studied called "old")', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip content={<ScatterTooltip xLabel="Free Recall (%)" yLabel="Recognition (%)" />} />
+                      <Tooltip content={<ScatterTooltip xLabel="Free Recall" yLabel="Hit Rate (% studied called &quot;old&quot;)" />} />
                       {revealed && (
                         <Scatter data={recallVsRecogScatter} fill="#34d399" name="Participant" />
                       )}
@@ -616,17 +616,17 @@ export default function DRMTeacherDashboard() {
               {(revealed) => (
                 <div>
                   <p className="text-xs text-muted mb-4">
-                    Each dot is one participant. X = overall recognition accuracy, Y = mean confidence (1–4).
+                    Each dot is one participant. X = overall accuracy (% correct across all items), Y = mean confidence (1–4).
                   </p>
                   <ResponsiveContainer width="100%" height={320}>
                     <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis type="number" dataKey="x" stroke="#9ca3af" tick={TICK} domain={[0, 100]}
-                        label={{ value: 'Recognition Accuracy (%)', position: 'insideBottom', offset: -5, ...TICK }} />
+                        label={{ value: 'Overall Accuracy (% correct across all items)', position: 'insideBottom', offset: -5, ...TICK }} />
                       <YAxis type="number" dataKey="y" stroke="#9ca3af" tick={TICK} domain={[1, 4]}
                         label={{ value: 'Mean Confidence', angle: -90, position: 'insideLeft', ...TICK }} />
                       <ZAxis range={[60, 60]} />
-                      <Tooltip content={<ScatterTooltip xLabel="Accuracy (%)" yLabel="Confidence" />} />
+                      <Tooltip content={<ScatterTooltip xLabel="Overall Accuracy (% correct)" yLabel="Confidence" />} />
                       {revealed && (
                         <Scatter data={recogVsConfScatter} fill="#fbbf24" name="Participant" />
                       )}
