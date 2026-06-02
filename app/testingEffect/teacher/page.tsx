@@ -36,6 +36,15 @@ function sem(vals: number[]) {
 }
 function round1(n: number) { return Math.round(n * 10) / 10; }
 
+/** Compute a nice Y-axis ceiling from BarPoint data: max(value+sem), rounded up to nearest step. */
+function niceMax(points: BarPoint[], minCeil = 10): number {
+  const peak = Math.max(...points.map(p => p.value + p.sem), 0);
+  if (peak <= 0) return minCeil;
+  // Choose step size based on magnitude
+  const step = peak <= 10 ? 2 : peak <= 25 ? 5 : peak <= 60 ? 10 : 20;
+  return Math.max(minCeil, Math.ceil(peak / step) * step);
+}
+
 interface BarPoint { name: string; value: number; sem: number }
 interface ScatterPoint { x: number; y: number; name: string }
 interface DashboardData {
@@ -331,7 +340,7 @@ export default function DashboardPage() {
                 <BarChart data={data.chart1} margin={{ left: 10, bottom: 5 }} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="name" tick={TICK} />
-                  <YAxis domain={[0, 100]} tick={TICK}
+                  <YAxis domain={[0, niceMax(data.chart1)]} tick={TICK}
                     label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
                   <Tooltip contentStyle={BG} formatter={pctFmt} />
                   {revealed[1] && (
@@ -373,7 +382,7 @@ export default function DashboardPage() {
                 <BarChart data={data.chart3} margin={{ left: 10, bottom: 5 }} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="name" tick={TICK} />
-                  <YAxis domain={[0, 100]} tick={TICK}
+                  <YAxis domain={[0, niceMax(data.chart3)]} tick={TICK}
                     label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
                   <Tooltip contentStyle={BG} formatter={pctFmt} />
                   {revealed[3] && (
@@ -429,7 +438,7 @@ export default function DashboardPage() {
                 <BarChart data={data.chart5} margin={{ left: 10, bottom: 5 }} barCategoryGap="25%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="name" tick={TICK} />
-                  <YAxis domain={[0, 100]} tick={TICK}
+                  <YAxis domain={[0, niceMax(data.chart5)]} tick={TICK}
                     label={{ value: 'S2 Accuracy (%)', angle: -90, position: 'insideLeft', style: LBL }} />
                   <Tooltip contentStyle={BG} formatter={pctFmt} />
                   {revealed[5] && (
